@@ -1,5 +1,9 @@
 #!/usr/bin/env bash
 
+#########################################################
+# BUILD THE pueo.sqfs FILE FOR THE TURF                 #
+#########################################################
+
 # sigh. yes, this whole setup is a giant mess.
 # build_pueo_sqfs is for the SURF. it generates a pueo.sqfs for the SURF.
 # build_turf_sqfs is for the TURF. it generates a pueo.sqfs for the TURF.
@@ -7,30 +11,31 @@
 # at some point I thought all of this made sense
 
 # boot script is magic, it will always rename to boot.sh
-BOOTSCRIPT="boot_script/boot_teststartup.sh"
+BOOTSCRIPT="boot_script/boot_dummy.sh"
 
 # version script and file
 VERSCRIPT="./create_pueo_sqfs_version.py"
 VERFILE="PUEO_SQFS_VERSION"
 
 # individual single-file python modules
-PYTHON_SINGLE_FILES="pysoceeprom/pysoceeprom.py \
-	        pyzynqmp/pyzynqmp.py \
-		signalhandler/signalhandler.py"
+PYTHON_SINGLE_FILES="pueo-utils/pysoceeprom/pysoceeprom.py \
+	        pueo-utils/pyzynqmp/pyzynqmp.py \
+		pueo-utils/signalhandler/signalhandler.py"
 
 # multi-file python modules wrapped in directories
-PYTHON_DIRS="pyrfdc/pyrfdc/ \
-	       s6clk/ "
+# we don't have any yet for TURF
+#PYTHON_DIRS=""
+
 # scripts
-SCRIPTS="scripts/build_squashfs \
-         scripts/autoprog.py \
-	 pyfwupd/pyfwupd.py"
+SCRIPTS="pueo-utils/scripts/build_squashfs \
+         pueo-utils/scripts/autoprog.py"
 
 # binaries
-BINARIES="binaries/xilframe"
+# don't have any yet for TURF
+#BINARIES=""
 
 # name of the autoexclude file
-SURFEXCLUDE="pueo_sqfs_surf.exclude"
+THISEXCLUDE="pueo_sqfs_turf.exclude"
 
 if [ "$#" -ne 1 ] ; then
     echo "usage: build_pueo_sqfs.sh <destination filename>"
@@ -49,39 +54,60 @@ cp -R base_squashfs/* ${WORKDIR}
 $VERSCRIPT ${WORKDIR} ${VERFILE}
 
 # autocreate the exclude
-echo "... __pycache__/*" > ${WORKDIR}/share/${SURFEXCLUDE}
-for f in `find python_squashfs -type f` ; do
+echo "... __pycache__/*" > ${WORKDIR}/share/${THISEXCLUDE}
+for f in `find pueo-utils/python_squashfs -type f` ; do
     FN=`basename $f`
     FULLDIR=`dirname $f`
     DIR=`basename $FULLDIR`
-    echo ${DIR}/${FN} >> ${WORKDIR}/share/${SURFEXCLUDE}
+    echo ${DIR}/${FN} >> ${WORKDIR}/share/${THISEXCLUDE}
 done
 # if build_squashfs is used there is no version!
 # build_squashfs generates test software!
-echo "share/version.pkl" >> ${WORKDIR}/share/${SURFEXCLUDE}
+echo "share/version.pkl" >> ${WORKDIR}/share/${THISEXCLUDE}
 
-for f in ${PYTHON_SINGLE_FILES} ; do
-    cp $f ${WORKDIR}/pylib/
-done
-for d in ${PYTHON_DIRS} ; do
-    cp -R $d ${WORKDIR}/pylib/
-done
+if [ -z "${PYTHON_SINGLE_FILES}" ] ; then
+    echo "No Python single files."
+else
+    for f in ${PYTHON_SINGLE_FILES} ; do
+	cp $f ${WORKDIR}/pylib/
+    done
+fi
+
+if [ -z "${PYTHON_DIRS}" ] ; then
+    echo "No Python directories."
+else
+    for d in ${PYTHON_DIRS} ; do
+	cp -R $d ${WORKDIR}/pylib/
+    done
+fi
 
 # SURF build is special, it extracts stuff
-echo "Building the SURF contents from pueo-python."
-bash pueo-python/make_surf.sh ${WORKDIR}/pylib/
+echo "Building the TURF contents from pueo-python."
+bash pueo-python/make_turf.sh ${WORKDIR}/pylib/
 
-# pysurfHskd is special because so much testing
-echo "Building pysurfHskd"
-bash pysurfHskd/make_pysurfhskd.sh ${WORKDIR}
+# pyturfHskd
+if [ ! -e pyturfHskd/make_pyturfhskd.sh ] ; then
+    echo "Skipping pyturfHskd"
+else
+    echo "Building pyturfHskd"
+    bash pyturfHskd/make_pyturfhskd.sh ${WORKDIR}
+fi
 
-for s in ${SCRIPTS} ; do
-    cp $s ${WORKDIR}/bin/
-done
+if [ -z "${SCRIPTS}" ] ; then
+    echo "No scripts."
+else 
+    for s in ${SCRIPTS} ; do
+	cp $s ${WORKDIR}/bin/
+    done
+fi
 
-for b in ${BINARIES} ; do
-    cp $b ${WORKDIR}/bin/
-done
+if [ -z "${BINARIES}" ] ; then
+    echo "No binaries."
+else
+    for b in ${BINARIES} ; do
+	cp $b ${WORKDIR}/bin/
+    done
+fi
 
 # avoid gitignores and pycaches
 mksquashfs ${WORKDIR} $1 -noappend -wildcards -ef pueo_sqfs.exclude
