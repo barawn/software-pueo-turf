@@ -20,7 +20,8 @@ VERFILE="PUEO_SQFS_VERSION"
 # individual single-file python modules
 PYTHON_SINGLE_FILES="pueo-utils/pysoceeprom/pysoceeprom.py \
 	        pueo-utils/pyzynqmp/pyzynqmp.py \
-		pueo-utils/signalhandler/signalhandler.py"
+		pueo-utils/signalhandler/signalhandler.py \
+		pueo-utils/sit5157/sit5157.py"
 
 # multi-file python modules wrapped in directories
 # we don't have any yet for TURF
