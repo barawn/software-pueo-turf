@@ -25,7 +25,7 @@ class SiT5157(I2CDevice):
                                     self.rangeMap.keys()))
 
     def read(self, addr):
-        self.i2c_write(addr)
+        self.i2c_write(addr.to_bytes(1, 'big'))
         v = self.i2c_read(2)
         return (v[0] << 8) | (v[1])
 
