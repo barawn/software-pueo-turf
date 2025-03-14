@@ -2,13 +2,10 @@ import struct
 import spi
 import selectors
 from signalhandler import SignalHandler
-from pathlib import Path
-from gpio import GPIO
 import logging
 import argparse
 import os
 import pty
-import itertools
 
 from hskSpi import HskSPI
 
