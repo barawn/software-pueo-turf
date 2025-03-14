@@ -1,4 +1,6 @@
+from pathlib import Path
 import spi
+from gpio import GPIO
 
 class HskRSPI(spi.SPI):
     def __init__(self, path='/dev/spidev2.0', gpiopin=79, speed=30000000, chunk_size=32):
