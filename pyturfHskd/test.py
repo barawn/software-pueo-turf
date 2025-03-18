@@ -39,7 +39,7 @@ def addLoggingLevel(levelName, levelNum, methodName=None):
 addLoggingLevel('TRACE', logging.DEBUG-5)
 addLoggingLevel('DETAIL', logging.INFO-5)
 logger = logging.getLogger(LOG_NAME)
-logging.basicConfig(level=10)
+logging.basicConfig(level=5)
 
 sel = selectors.DefaultSelector()
 handler = SignalHandler(sel)
@@ -68,6 +68,22 @@ upstreams.append( SerHandler(sel,
                              name="SFC",
                              logName=LOG_NAME,
                              port='/dev/hskspi') )
+# make an upstream handler factory function
+# see e.g. https://eev.ee/blog/2011/04/24/gotcha-python-scoping-closures/
+def makeUpstreamHandler(uph):
+    def upstreamHandler(fd, mask):
+        if uph.fifo.empty():
+            logger.error("%s handler called but FIFO is empty?", uph.name)
+            raise IOError("empty fifo read")            
+        pktNo = os.read(fd, 1)
+        pkt = uph.fifo.get()
+        packetsForDownstream.put(pkt)
+        logger.info("got upstream packet #%d from %s via %s: %s",
+                    pktNo[0],
+                    hex(pkt[0]),
+                    uph.name,
+                    pkt.hex(sep=' '))
+    return upstreamHandler
 
 # true serial downstreams
 for i in range(4):
@@ -76,45 +92,36 @@ for i in range(4):
                                    logName=LOG_NAME,
                                    port='/dev/ttyUL'+str(i),
                                    baud=500000) )
-
-# start the upstreams
-for uh in upstreams:
-    # create a closure as the callback function
-    def upstreamHandler(fd, mask):
-        if uh.fifo.empty():
-            logger.error("handler called but FIFO is empty?")
-            return
-        pktno = os.read(fd, 1)
-        pkt = uh.fifo.get()
-        packetsForDownstream.put(pkt)
-        logger.info("got upstream packet #%d from %s via %s: %s",
-                    pktNo[0],
-                    hex(pkt[0]),
-                    uh.name,
-                    pkt.hex(sep=' '))
-    uh.start(callback=upstreamHandler)
-# start the downstreams
-for dh in downstreams:
-    # create a closure as the callback function
+# make a downstream handler factory function
+def makeDownstreamHandler(downh):
     def downstreamHandler(fd, mask):
-        if dh.fifo.empty():
-            logger.error("handler called but FIFO is empty?")
+        if downh.fifo.empty():
+            logger.error("%s handler called but FIFO is empty?", downh.name)
             return
-        pktno = os.read(fd, 1)
-        pkt = dh.fifo.get()
+        pktNo = os.read(fd, 1)
+        pkt = downh.fifo.get()
         packetsForUpstream.put(pkt)
         logger.info("got downstream packet #%d from %s via %s: %s",
                     pktNo[0],
                     hex(pkt[0]),
-                    uh.name,
+                    downh.name,
                     pkt.hex(sep=' '))
-    dh.start(callback=downstreamHandler)
+    return downstreamHandler
+
+# start the upstreams
+for uh in upstreams:
+    logger.info("starting %s handler", uh.name)
+    uh.start(callback=makeUpstreamHandler(uh))
+
+# start the downstreams
+for dh in downstreams:
+    logger.info("starting %s handler", dh.name)
+    dh.start(callback=makeDownstreamHandler(dh))
         
 while not handler.terminate:
     events = sel.select()
     for key, mask in events:
         callback = key.data
-        logger.trace("processing %s", callback)
         try:
             callback(key.fileobj, mask)
         except Exception as e:
@@ -132,15 +139,19 @@ while not handler.terminate:
             dh.sendPacket(pkt)
     while not packetsForUpstream.empty():
         pkt = packetsForUpstream.get()
+        dst = pkt[1]
         logger.info("trying to find an upstream for destination %s",
-                    hex(pkt[0]))
+                    hex(dst))
         for uh in upstreams:
-            if pkt[0] in uh.sources:
+            if dst in uh.sources:
                 logger.info("forwarding packet to %s",
                             uh.name)
                 uh.sendPacket(pkt)
                 
 logger.info("Terminating!")
-upHskSerial.stop()
+for uh in upstreams:
+    uh.stop()
+for dh in downstreams:
+    dh.stop()
 
 exit(0)
