@@ -6,8 +6,10 @@ import logging
 import argparse
 import os
 import pty
+from termios import *
 
 from hskSpi import HskSPI
+from cfmakeraw import cfmakeraw
 
 EVENTPATH="/dev/input/by-path/platform-hsk-gpio-keys-event"
 LOG_NAME="hskSpi"
@@ -82,9 +84,16 @@ if __name__ == "__main__":
     # create the signal handler
     handler = SignalHandler(sel)
 
-    # create pty and link it
-    rpty, wpty = pty.openpty()
-    rp = os.ttyname(wpty)
+    # create pty.
+    # The way this works is that you read/write from mypty
+    # but you set the mode and get name from s
+    mypty, s = pty.openpty()
+    # raw mode
+    mode = tcgetattr(s)
+    cfmakeraw(mode)    
+    tcsetattr(s, TCSANOW, mode)
+    # link it to a well-known name
+    rp = os.ttyname(s)
     if os.path.exists(args.pty) or os.path.islink(PTYNAME):
         os.remove(args.pty)
     os.symlink(rp, args.pty)
@@ -94,7 +103,7 @@ if __name__ == "__main__":
         def handleDownstream(f, m):
             logger.info("downstream packet available: reading")
             # data on pty
-            r = os.read(rpty, 2048)
+            r = os.read(mypty, 2048)
             logger.trace("read %d bytes" % len(r))
             dev.write(r)
             
@@ -108,18 +117,17 @@ if __name__ == "__main__":
             else:
                 if e.code == 30 and e.value == 1:
                     logger.info("upstream packet available: reading")
-                    r = dev.read()
+                    r = dev.read(untilEmpty=True)
                     logger.trace("read %d bytes" % len(r))
                     pkts = list(filter(None, r.split(b'\x00')))
                     logger.trace("found %d packets, forwarding" % len(pkts))
                     for pkt in pkts:
-                        os.write(wpty, pkt+b'\x00')
+                        os.write(mypty, pkt+b'\x00')
                 elif e.code == 30 and e.value == 0:
                     logger.trace("received read complete notification")
 
-        # NEED TO ADD THE FUNCTION TO READ DATA FROM THE PTY TOO!
         sel.register(evf, selectors.EVENT_READ, handleUpstream)
-        sel.register(rpty, selectors.EVENT_READ, handleDownstream)
+        sel.register(mypty, selectors.EVENT_READ, handleDownstream)
         
         while not handler.terminate:
             events = sel.select(timeout=0.1)
@@ -128,6 +136,6 @@ if __name__ == "__main__":
                 callback(key.fileobj, mask)
 
     logger.info("exiting")
-    os.close(wpty)
-    os.close(rpty)
+    os.close(mypty)
+    os.close(s)
     os.remove(args.pty)

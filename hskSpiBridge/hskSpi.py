@@ -11,15 +11,17 @@ class HskRSPI(spi.SPI):
         self.chunk_size = 32
         self.pin = GPIO(GPIO.get_gpio_pin(2, gpio_type='EMIO'), direction='in')
 
-    def read(self):
+    def read(self, untilEmpty=False):
         r = bytearray()
-        while not self.complete:
-            r += self.transfer(b'\x00'*self.chunk_size)
+        r += self.transfer(b'\x00'*self.chunk_size)
+        if untilEmpty:
+            while not self.complete:
+                r += self.transfer(b'\x00'*self.chunk_size)
         return r
         
     @property
     def complete(self):
-        return not self.pin.read()
+        return self.pin.read()
 
 class HskWSPI(spi.SPI):
     def __init__(self, path='/dev/spidev2.1', speed=30000000):
@@ -27,8 +29,6 @@ class HskWSPI(spi.SPI):
         self.mode = self.MODE_0
         self.bits_per_word = 8
         self.speed = speed
-        self.chunk_size = 32
-        self.pin = GPIO(GPIO.get_gpio_pin(2, gpio_type='EMIO'), direction='in')
 
     def write(self, pkt):
         self.transfer(pkt)
@@ -53,6 +53,6 @@ class HskSPI():
         self.wspi = HskWSPI(self.spi_find_device('osu,turfhskWrite'),
                             speed=speed)
         self.read = self.rspi.read
-        self.write = self.rspi.write
+        self.write = self.wspi.write
         
                             
