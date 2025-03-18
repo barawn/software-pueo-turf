@@ -21,10 +21,12 @@ from serial import Serial
 class SerHandler:
     def __init__(self,
                  sel,
+                 name=None,
                  logName="testing",
                  port='/dev/ttySC0',
                  baud=460800):
         self.selector = sel
+        self.name = name
         self.logger = logging.getLogger(logName)
         self.fifo = queue.Queue()
         self.port = Serial(port, baud)
