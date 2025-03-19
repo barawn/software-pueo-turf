@@ -90,6 +90,7 @@ for i in range(4):
     downstreams.append( SerHandler(sel,
                                    name="TURFIO"+str(i),
                                    logName=LOG_NAME,
+                                   downstream=True,
                                    port='/dev/ttyUL'+str(i),
                                    baud=500000) )
 # make a downstream handler factory function
