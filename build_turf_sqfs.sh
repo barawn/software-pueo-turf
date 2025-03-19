@@ -24,8 +24,7 @@ PYTHON_SINGLE_FILES="pueo-utils/pysoceeprom/pysoceeprom.py \
 	      	sit5157/sit5157.py"
 
 # multi-file python modules wrapped in directories
-# we don't have any yet for TURF
-#PYTHON_DIRS=""
+PYTHON_DIRS="hskSpiBridge/"
 
 # scripts
 SCRIPTS="pueo-utils/scripts/build_squashfs \
