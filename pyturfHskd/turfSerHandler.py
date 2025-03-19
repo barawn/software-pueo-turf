@@ -8,6 +8,16 @@
 #
 # The one thing we _add_ here is a function to store source IDs.
 # That will let us route stuff.
+#
+# _damnit_, no, we need to do more. The issue is that with multiple
+# upstreams we need to make sure we're not sending multiple packets
+# that might cause SURFs to talk over each other.
+#
+# NEW PLAN: for downstream guys we start a writer thread and
+# create a queue for outbound packets. When we send an outbound
+# packet, we clear the event and then wait for the inbound
+# readerthread to set the event, up to 0.1 ms, before sending
+# the next packet.
 from serial.threaded import Packetizer, ReaderThread
 import logging
 import threading
@@ -24,7 +34,8 @@ class SerHandler:
                  name=None,
                  logName="testing",
                  port='/dev/ttySC0',
-                 baud=460800):
+                 baud=460800,
+                 downstream=False):
         self.selector = sel
         self.name = name
         self.logger = logging.getLogger(logName)
@@ -32,10 +43,14 @@ class SerHandler:
         self.port = Serial(port, baud)
         self.handler = None
         self.transport = None
+        self.downstream = downstream
         self.sources = []        
         
         def makePacketHandler():
-            return SerPacketHandler(self.fifo, logName, self.addSource)
+            return SerPacketHandler(self.fifo,
+                                    logName,
+                                    self.addSource,
+                                    self.downstream)
 
         self.reader = ReaderThread(self.port, makePacketHandler)
         self.sendPacket = self.notRunningError
@@ -83,7 +98,8 @@ class SerPacketHandler(Packetizer):
     def __init__(self,
                  fifo,
                  logName='serPacketHandler',
-                 addSource=lambda x : None):
+                 addSource=lambda x : None,
+                 downstream=False):
         super(SerPacketHandler, self).__init__()
         self.rfd, self.wfd = os.pipe2(os.O_NONBLOCK | os.O_CLOEXEC)
         self.fifo = fifo
@@ -96,15 +112,35 @@ class SerPacketHandler(Packetizer):
         self._droppedPackets = 0
         self._mod = lambda x : x & 0xFF
         self.addSource = addSource
+        self.downstream = downstream
+        if self.downstream:
+            # create an event to signal that we got a response
+            self.inPacketEvent = threading.Event()
+            # create a queue for the writer thread
+            self.downstreamWriteFifo = queue.Queue()
+        else:
+            self.inPacketEvent = None
+        # we start off having no write thread
+        self.writeThread = None
         
     def connection_mode(self, transport):
         super(SerPacketHandler, self).connection_made(transport)
+        if self.downstream:
+            # create the write thread in a running state
+            self.terminate = False
+            self.writeThread = threading.Thread(target=self.downstream_thread_send_packet)
+            self.writeThread.start()
         self.logger.info("opened port")
 
     def connection_lost(self, exc):
         if isinstance(exc, Exception):
             self.logger.info("port closed due to exception")
             raise exc
+        if self.writeThread:
+            # stop the write thread. This might take a second (literally a second).
+            self.terminate = True
+            self.writeThread.join()
+            self.writeThread = None
         self.logger.info("closed port")
 
     def handleErrorPacket(self, pkt, msg):
@@ -121,7 +157,11 @@ class SerPacketHandler(Packetizer):
             pkt = cobs.decode(packet)
         except cobs.DecodeError:
             self.handleErrorPacket(pkt, "COBS decode error")
-            return        
+            return
+        # COBS decode ok. At this point just flag that we got something.
+        if self.inPacketEvent:
+            self.inPacketEvent.set()
+            
         # COBS decode ok. Next check packet length
         # and checksum
         pktLen = len(pkt)
@@ -158,15 +198,37 @@ class SerPacketHandler(Packetizer):
             self.logger.error("packet FIFO is full: dropped packet count %d" %
                               droppedPackets)
         
-    def send_packet(self, packet):
-        """ send binary packet via COBS encoding """
+    def send_packet_upstream(self, packet):
+        """ send binary packet via COBS encoding if upstream link """
         d = cobs.encode(packet) + b'\x00'
         if self.transport:
             self.transport.write(d)
         with self._statisticsLock:
             self._sentPackets = self._sentPackets + 1
 
+    def send_packet_downstream(self, packet):
+        """ send binary packet via COBS encoding if downstream link """
+        d = cobs.encode(packet) + b'\x00'
+        if self.downstreamWriteFifo:
+            self.downstreamWriteFifo.put(d)
+
+    def downstream_thread_send_packet(self):
+        """ Worker thread for cases where we send downstream. """
+        while not self.terminate:
+            try:
+                self.inPacketEvent.clear()
+                pkt = self.downstreamWriteFifo.get(timeout=1)
+                if self.transport:
+                    self.transport.write(d)
+                with self._statisticsLock:
+                    self._sentPackets = self._sentPackets + 1
+                self.inPacketEvent.wait(0.1)                
+            except queue.Empty:
+                pass
+                
+            
     def statistics(self):
+        """ Get the packet statistics """
         r = []
         with self._statisticsLock:
             r = [self._receivedPackets,
