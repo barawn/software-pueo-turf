@@ -35,7 +35,8 @@ class SerHandler:
                  logName="testing",
                  port='/dev/ttySC0',
                  baud=460800,
-                 downstream=False):
+                 downstream=False,
+                 knownSources=[]):
         self.selector = sel
         self.name = name
         self.logger = logging.getLogger(logName)
@@ -44,12 +45,13 @@ class SerHandler:
         self.handler = None
         self.transport = None
         self.downstream = downstream
-        self.sources = []        
+        self.sources = knownSources 
         
         def makePacketHandler():
             return SerPacketHandler(self.fifo,
                                     logName,
                                     self.addSource,
+                                    self.name,
                                     self.downstream)
 
         self.reader = ReaderThread(self.port, makePacketHandler)
@@ -99,6 +101,7 @@ class SerPacketHandler(Packetizer):
                  fifo,
                  logName='serPacketHandler',
                  addSource=lambda x : None,
+                 name=None,
                  downstream=False):
         super(SerPacketHandler, self).__init__()
         self.rfd, self.wfd = os.pipe2(os.O_NONBLOCK | os.O_CLOEXEC)
@@ -113,17 +116,20 @@ class SerPacketHandler(Packetizer):
         self._mod = lambda x : x & 0xFF
         self.addSource = addSource
         self.downstream = downstream
+        self.name = name
         if self.downstream:
             # create an event to signal that we got a response
             self.inPacketEvent = threading.Event()
             # create a queue for the writer thread
             self.downstreamWriteFifo = queue.Queue()
+            self.send_packet = self.send_packet_downstream
         else:
             self.inPacketEvent = None
+            self.send_packet = self.send_packet_upstream
         # we start off having no write thread
         self.writeThread = None
         
-    def connection_mode(self, transport):
+    def connection_made(self, transport):
         super(SerPacketHandler, self).connection_made(transport)
         if self.downstream:
             # create the write thread in a running state
@@ -209,20 +215,27 @@ class SerPacketHandler(Packetizer):
     def send_packet_downstream(self, packet):
         """ send binary packet via COBS encoding if downstream link """
         d = cobs.encode(packet) + b'\x00'
-        if self.downstreamWriteFifo:
+        if self.downstreamWriteFifo: 
+            self.logger.trace("forwarding packet to write thread")           
             self.downstreamWriteFifo.put(d)
 
     def downstream_thread_send_packet(self):
         """ Worker thread for cases where we send downstream. """
+        self.logger.trace("%s write thread starting", self.name)
         while not self.terminate:
             try:
                 self.inPacketEvent.clear()
-                pkt = self.downstreamWriteFifo.get(timeout=1)
+                d = self.downstreamWriteFifo.get(timeout=1)
+                self.logger.trace("write thread: got packet to write to downstream")
                 if self.transport:
                     self.transport.write(d)
                 with self._statisticsLock:
                     self._sentPackets = self._sentPackets + 1
-                self.inPacketEvent.wait(0.1)                
+                self.inPacketEvent.wait(0.1)
+                if self.inPacketEvent.is_set():
+                    self.logger.trace("write thread: got response")
+                else:
+                    self.logger.trace("write thread: timed out")
             except queue.Empty:
                 pass
                 
