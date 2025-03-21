@@ -6,10 +6,9 @@ import logging
 import argparse
 import os
 import pty
-from termios import *
 
 from hskSpi import HskSPI
-from cfmakeraw import cfmakeraw
+from rawpty import RawPTY
 
 EVENTPATH="/dev/input/by-path/platform-hsk-gpio-keys-event"
 LOG_NAME="hskSpi"
@@ -85,20 +84,8 @@ if __name__ == "__main__":
     handler = SignalHandler(sel)
 
     # create pty.
-    # The way this works is that you read/write from mypty
-    # but you set the mode and get name from s
-    mypty, s = pty.openpty()
-    # raw mode
-    mode = tcgetattr(s)
-    cfmakeraw(mode)    
-    tcsetattr(s, TCSANOW, mode)
-    # link it to a well-known name
-    rp = os.ttyname(s)
-    if os.path.exists(args.pty) or os.path.islink(PTYNAME):
-        os.remove(args.pty)
-    os.symlink(rp, args.pty)
-    logger.info("open with path " + args.pty)
-    
+    pty = RawPTY(wellKnownName=args.pty)
+
     with open(EVENTPATH, "rb") as evf:
         def handleDownstream(f, m):
             logger.info("downstream packet available: reading")
@@ -122,12 +109,12 @@ if __name__ == "__main__":
                     pkts = list(filter(None, r.split(b'\x00')))
                     logger.trace("found %d packets, forwarding" % len(pkts))
                     for pkt in pkts:
-                        os.write(mypty, pkt+b'\x00')
+                        os.write(pty.pty, pkt+b'\x00')
                 elif e.code == 30 and e.value == 0:
                     logger.trace("received read complete notification")
 
         sel.register(evf, selectors.EVENT_READ, handleUpstream)
-        sel.register(mypty, selectors.EVENT_READ, handleDownstream)
+        sel.register(pty.pty, selectors.EVENT_READ, handleDownstream)
         
         while not handler.terminate:
             events = sel.select(timeout=0.1)
@@ -136,6 +123,3 @@ if __name__ == "__main__":
                 callback(key.fileobj, mask)
 
     logger.info("exiting")
-    os.close(mypty)
-    os.close(s)
-    os.remove(args.pty)
