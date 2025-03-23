@@ -69,7 +69,7 @@ class RawPTY:
         # hide ourselves inside Serial so we don't go away until it does
         ser.pty = self
         # set our fd to Serial's fd
-        ser.fd = fd
+        ser.fd = self.pty
         # set Serial to be open
         ser.is_open = True
         # create the abort pipes and set the read versions to nonblocking
