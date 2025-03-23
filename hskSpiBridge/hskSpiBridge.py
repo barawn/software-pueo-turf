@@ -1,14 +1,18 @@
+#!/usr/bin/env python3
+
 import struct
 import spi
 import selectors
-from signalhandler import SignalHandler
 import logging
 import argparse
 import os
-import pty
-
-from hskSpi import HskSPI
+import sys
 from rawpty import RawPTY
+from signalhandler import SignalHandler
+
+# hskspi is hiding in our path, so fetch it
+sys.path.append(os.path.dirname(__file__))
+from hskSpi import HskSPI
 
 EVENTPATH="/dev/input/by-path/platform-hsk-gpio-keys-event"
 LOG_NAME="hskSpi"
