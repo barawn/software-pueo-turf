@@ -1,6 +1,7 @@
 import os
 import fcntl
 from termios import *
+import pty
 
 # this is a bunch of random utilities for fake serial-port like things
 
