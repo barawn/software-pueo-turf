@@ -11,7 +11,7 @@
 # at some point I thought all of this made sense
 
 # boot script is magic, it will always rename to boot.sh
-BOOTSCRIPT="boot_script/boot_dummy.sh"
+BOOTSCRIPT="boot_script/boot_hskspi.sh"
 
 # version script and file
 VERSCRIPT="./create_pueo_sqfs_version.py"
@@ -21,10 +21,12 @@ VERFILE="PUEO_SQFS_VERSION"
 PYTHON_SINGLE_FILES="pueo-utils/pysoceeprom/pysoceeprom.py \
 	        pueo-utils/pyzynqmp/pyzynqmp.py \
 		pueo-utils/signalhandler/signalhandler.py \
-	      	sit5157/sit5157.py"
+	      	sit5157/sit5157.py \
+		rawpty/rawpty.py"
 
 # multi-file python modules wrapped in directories
-PYTHON_DIRS="hskSpiBridge/"
+PYTHON_DIRS="hskSpiBridge/ \
+	     hskRouter/"
 
 # scripts
 SCRIPTS="pueo-utils/scripts/build_squashfs \

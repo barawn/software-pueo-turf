@@ -1,0 +1,11 @@
+[Unit]
+Description=PUEO TURF hsk spi bridge
+
+[Service]
+ExecStart=/usr/local/pylib/hskSpiBridge/hskSpiBridge.py
+Type=simple
+StandardOutput=journal
+Restart=always
+
+[Install]
+WantedBy=multi-user.target
