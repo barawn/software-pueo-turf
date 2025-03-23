@@ -1,0 +1,12 @@
+[Unit]
+Description=PUEO TURF hsk router
+
+[Service]
+ExecStart=/usr/local/pylib/hskRouter/hskRouter.py
+Type=simple
+StandardOutput=journal
+Restart=always
+
+[Install]
+WantedBy=multi-user.target
+Requires=hskspibridge
