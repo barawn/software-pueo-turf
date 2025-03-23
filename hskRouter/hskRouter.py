@@ -12,7 +12,7 @@ import logging
 import queue
 import configparser
 import pty
-from cfmakeraw import cfmakeraw, RawPTY
+from rawpty import RawPTY
 from signalhandler import SignalHandler
 from turfSerHandler import SerHandler
 
@@ -36,34 +36,15 @@ if os.exists(CONFIG_NAME):
         config[link]['KnownSources'] = list(map(lambda x : int(x, 0),
                                                 parser.get(link, 'KnownSources', fallback=[])))
 
-# spawn the turf raw pty
-def makepty():
-    mypty, s = pty.openpty()
-    mode = tcgetattr(s)
-    cfmakeraw(mode)
-    tcsetattr(s, TCSANOW, mode)
-    # make nonblock bc that's what Serial wants. O_RDWR/O_NOCTTY are already set.
-    flag = fcntl.fcntl(mypty, fcntl.F_GETFL)
-    fcntl.fcntl(mypty, fcntl.F_SETFL, flag | os.O_NONBLOCK)
-    # link it to a well-known name
-    rp = os.ttyname(s)
-    if os.path.exists(config['TurfPath']) or os.path.islink(config['TurfPath']):
-        os.remove(config['TurfPath'])
-    os.symlink(rp, config['TurfPath'])
-
-# Wanna see some'n cool? You create with a port of None and then forcibly
-# set the fd, is_open, and create pipes. Poof! Fake serial port!
-def makeFakeSerial(ser, fd):    
-    ser.fd = fd
-    ser.is_open = True
-    ser.pipe_abort_read_r, ser.pipe_abort_read_w = os.pipe()
-    ser.pipe_abort_write_r, ser.pipe_abort_write_w = os.pipe()
-    fcntl.fcntl(ser.pipe_abort_read_r, fcntl.F_SETFL, os.O_NONBLOCK)
-    fcntl.fcntl(ser.pipe_abort_write_r, fcntl.F_SETFL, os.O_NONBLOCK)
-
-    
-turfpty = makepty()
-    
+# https://stackoverflow.com/questions/45455898/polling-for-a-maximum-wait-time-unless-condition-in-python-2-7
+def wait_condition(condition, timeout=5.0, granularity=0.3, time_factory=time):
+    end_time = time.time() + timeout   # compute the maximal end time
+    status = condition()               # first condition check, no need to wait if condition already True
+    while not status and time.time() < end_time:    # loop until the condition is false and timeout not exhausted
+        time.sleep(granularity)        # release CPU cycles
+        status = condition()           # check condition
+    return status                      # at the end, be nice and return the final condition status : True = condition satisfied, False = timeout occurred.
+        
 # https://stackoverflow.com/questions/2183233/how-to-add-a-custom-loglevel-to-pythons-logging-facility/35804945
 def addLoggingLevel(levelName, levelNum, methodName=None):
     if not methodName:
@@ -96,6 +77,15 @@ addLoggingLevel('DETAIL', logging.INFO-5)
 logger = logging.getLogger(LOG_NAME)
 logging.basicConfig(config['LogLevel'])
 
+# wait a moment for hskspi to show up
+if not wait_condition(os.path.exists('/dev/hskspi'),
+                      timeout=1.0,
+                      granularity=0.1):
+    logger.error('/dev/hskspi did not show up - exiting!!')
+    exit(1)
+
+turfpty = RawPTY(config['TurfPath'])
+
 sel = selectors.DefaultSelector()
 handler = SignalHandler(sel)
 
@@ -107,7 +97,7 @@ downstreams = []
 packetsForDownstream = queue.Queue()
 # create a downstream-to-upstream FIFO
 packetsForUpstream = queue.Queue()
-
+    
 # create the handlers. We added the name parameter to just
 # make things a bit easier to factor and debug
 
@@ -156,7 +146,7 @@ th = SerHandler( sel,
                  downstream=True,
                  knownSources=[config['TurfSource']],
                  port=None)
-makeFakeSerial(th.port, turfpty)
+turfpty.serial_attach(th.port)
 downstreams.append(th)
 
 # make a downstream handler factory function
@@ -201,10 +191,15 @@ while not handler.terminate:
     # HOUSEKEEPING ROUTER!!
     while not packetsForDownstream.empty():
         pkt = packetsForDownstream.get()
-        # just effing broadcast stuff downstream for now, we'll
-        # worry about routing later.
+        dst = pkt[1]
+        delivered = False
         for dh in downstreams:
-            dh.sendPacket(pkt)
+            if dst in dh.sources:
+                dh.sendPacket(pkt)
+                delivered = True
+        if not delivered:
+            for dh in downstreams:
+                dh.sendPacket(pkt)
     while not packetsForUpstream.empty():
         pkt = packetsForUpstream.get()
         dst = pkt[1]
