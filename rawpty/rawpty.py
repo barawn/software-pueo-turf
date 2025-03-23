@@ -59,7 +59,7 @@ class RawPTY:
     def __del__(self):
         os.unlink(self.path)
         
-    def attachToSerial(self, ser):
+    def serial_attach(self, ser):
         """ Attach this pty to a Serial instance that was started with port=None """
 
         # we need to be nonblocking for Serial
