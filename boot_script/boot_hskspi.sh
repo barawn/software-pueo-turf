@@ -3,6 +3,9 @@
 # reload systemd to pick up our services
 systemctl daemon-reload
 
+# we have to program the FPGA first before services start
+autoprog.py pysoceeprom.PySOCEEPROM
+
 # The TURF has a few other daemons running on it
 # automatically. List them here.
 AUTO_SERVICES="hskspibridge"
@@ -19,9 +22,6 @@ catch_term() {
     echo "termination signal caught"
     kill -TERM "$waitjob" 2>/dev/null
 }
-
-# automatically program the FPGA, weee!
-autoprog.py pysoceeprom.PySOCEEPROM
 
 trap catch_term SIGTERM
 
