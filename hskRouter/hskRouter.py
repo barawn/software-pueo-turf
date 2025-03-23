@@ -3,17 +3,18 @@
 # the housekeeping router spawns after the SPI bridge, although
 # we might need to delay a bit to make sure /dev/hskspi is
 # available.
-import os
-import fcntl
+import os, sys, time
 import struct
 import selectors
 import signal
 import logging
 import queue
 import configparser
-import pty
 from rawpty import RawPTY
 from signalhandler import SignalHandler
+
+# automagic
+sys.path.append(os.path.dirname(__file__))
 from turfSerHandler import SerHandler
 
 LOG_NAME = "hskRouter"
@@ -24,7 +25,7 @@ config = {}
 for i in range(4):
     config['TURFIO'+str(i)] = {}
     
-if os.exists(CONFIG_NAME):
+if os.path.exists(CONFIG_NAME):
     parser = configparser.ConfigParser()
     parser.read(CONFIG_NAME)
     config['LogLevel'] = parser.getint('hskRouter', 'LogLevel', fallback=30)
@@ -75,10 +76,10 @@ addLoggingLevel('TRACE', logging.DEBUG-5)
 addLoggingLevel('DETAIL', logging.INFO-5)
 
 logger = logging.getLogger(LOG_NAME)
-logging.basicConfig(config['LogLevel'])
+logging.basicConfig(level=config['LogLevel'])
 
 # wait a moment for hskspi to show up
-if not wait_condition(os.path.exists('/dev/hskspi'),
+if not wait_condition(lambda : os.path.exists('/dev/hskspi'),
                       timeout=1.0,
                       granularity=0.1):
     logger.error('/dev/hskspi did not show up - exiting!!')
