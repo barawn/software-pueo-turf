@@ -94,7 +94,7 @@ if __name__ == "__main__":
         def handleDownstream(f, m):
             logger.info("downstream packet available: reading")
             # data on pty
-            r = os.read(mypty, 2048)
+            r = os.read(pty.pty, 2048)
             logger.trace("read %d bytes" % len(r))
             dev.write(r)
             
