@@ -81,7 +81,8 @@ class SerHandler:
         self.reader.stop()
 
     def addSource(self, sid):
-        self.sources.append(sid)
+        if sid not in self.sources:
+            self.sources.append(sid)
         
     @staticmethod
     def notRunningError(*args):
