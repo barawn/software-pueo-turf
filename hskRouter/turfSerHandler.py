@@ -36,7 +36,7 @@ class SerHandler:
                  port='/dev/ttySC0',
                  baud=460800,
                  downstream=False,
-                 knownSources=[]):
+                 knownSources=None):
         self.selector = sel
         self.name = name
         self.logger = logging.getLogger(logName)
@@ -44,8 +44,9 @@ class SerHandler:
         self.port = Serial(port, baud)
         self.handler = None
         self.transport = None
-        self.downstream = downstream
-        self.sources = knownSources 
+        self.downstream = downstream        
+        self.sources = [] if not knownSources else knownSources
+        self.logger.trace(f'{self.name} sources is at {hex(id(self.sources))}')
         
         def makePacketHandler():
             return SerPacketHandler(self.fifo,
@@ -140,7 +141,7 @@ class SerPacketHandler(Packetizer):
 
     def connection_lost(self, exc):
         if isinstance(exc, Exception):
-            self.logger.info("port closed due to exception")
+            self.logger.error(f'{self.name} : port closed due to exception')            
             raise exc
         if self.writeThread:
             # stop the write thread. This might take a second (literally a second).
@@ -188,6 +189,7 @@ class SerPacketHandler(Packetizer):
             # extract the source ID and add it to the list of sources we've seen
             # except zero is a nono
             if pkt[0]:
+                self.logger.trace(f'{self.name}: add known source {hex(pkt[0])}')
                 self.addSource(pkt[0])
             self.fifo.put(pkt)
             # write something to our selfpipe to wake up the main thread
