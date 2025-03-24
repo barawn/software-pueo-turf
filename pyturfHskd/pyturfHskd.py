@@ -7,8 +7,18 @@ import selectors
 import signal
 import queue
 import logging
+
+from electronics.gateways import LinuxDevice
+from sit5157 import SiT5157
+
 from pueoTimer import HskTimer
 from signalhandler import SignalHandler
+from turfHskHandler import TurfHskHandler
+from turfHskProcessor import TurfHskProcessor
+from turfStartupHandler import TurfStartupHandler
+
+from pyzynqmp import PyZynqMP
+from pueo.turf import PueoTURF
 
 LOG_NAME = "pyturfHskd"
 
@@ -41,7 +51,7 @@ def addLoggingLevel(levelName, levelNum, methodName=None):
 addLoggingLevel('TRACE', logging.DEBUG-5)
 addLoggingLevel('DETAIL', logging.INFO-5)
 logger = logging.getLogger(LOG_NAME)
-logging.basicConfig(level=10)
+logging.basicConfig(level=5)
 
 # create the selector first
 sel = selectors.DefaultSelector()
@@ -49,7 +59,8 @@ sel = selectors.DefaultSelector()
 tickFifo = queue.Queue()
 
 ##########################################################################
-
+# HOUSEKEEPING TIMER
+#
 # this is our callback function for the timer
 def runTickFifo(fd, mask):
     tick = os.read(fd, 1)
@@ -69,8 +80,116 @@ def runTickFifo(fd, mask):
 
             handler.set_terminate()
 
+timer = HskTimer(sel, callback=runTickFifo, interval=1)
 ###########################################################################
 
-# The TURF housekeeping is more of a bridge, but we also have to check
-# if packets are intended for us either way.
+###########################################################################
+# SIGNAL HANDLER
+#
 
+handler = SignalHandler(sel)
+
+###########################################################################
+
+
+###########################################################################
+# HSK HANDLER
+
+hsk = TurfHskHandler(sel,
+                     logName=LOG_NAME)
+
+###########################################################################
+
+logger.info("starting up")
+
+zynq = PyZynqMP()
+turf = PueoTURF(PueoTURF.axilite_bridge(), 'AXI')
+# make this parameterizable later
+useThisClock = 0x6A
+logger.info(f'using clock {useThisClock:#0x}')
+clk = SiT5157(LinuxDevice(1), useThisClock)
+clk.enable = 1
+
+###########################################################################
+# STARTUP HANDLER
+startup = TurfStartupHandler(LOG_NAME,
+                             turf,
+                             TurfStartupHandler.StartupState.STARTUP_END,
+                             tickFifo)
+def runHandler(fd, mask):
+    st = os.read(fd, 1)
+    logger.trace("immediate run: handler in state %d", st[0])
+    startup.run()
+sel.register(startup.rfd, selectors.EVENT_READ, runHandler)
+###########################################################################
+
+timer.start()
+processor = TurfHskProcessor(hsk,
+                             zynq,
+                             startup,
+                             LOG_NAME,
+                             handler.set_terminate,
+                             plxVersionFile="/etc/petalinux/version",
+                             versionFile="/usr/local/share/version.pkl")
+
+hsk.start(callback=processor.basicHandler)
+
+try:
+    startup.run()
+except Exception as e:
+    import traceback
+    logger.error("callback threw an exception: %s", repr(e))
+    logger.error(traceback.format_exc())
+    
+    handler.set_terminate()
+
+while not handler.terminate:
+    events = sel.select()
+    for key, mask in events:
+        callback = key.data
+        logger.trace(f'processing {callback}')
+        try:
+            callback(key.fileobj, mask)
+        except Exception as e:
+            import traceback
+
+            logger.error("callback threw an exception: %s", repr(e))
+            logger.error(traceback.format_exc())
+
+            handler.set_terminate()
+
+logger.info("Terminating!")
+timer.cancel()
+hsk.stop()
+processor.stop()
+
+# ok, this changed with plx 0.3.0's pueo-squashfs:
+# there's only one termination option we can do (0x7E) - terminate no unmount
+# plus we have 0x7F (reboot)
+# we then have 5 restart combinations with pueo-squashfs
+# 0: normal exit and restart (load next software, keep local changes)
+# 1: hot restart (do not load next software, keep local changes)
+# 2: normal exit, revert and restart (load next software, abandon local changes)
+# 3: hot revert and restart (do not load next software, abandon local changes)
+# 4: clean up and restart (restart from QSPI)
+#
+# this is implemented with 3 bitmasks and 2 magic numbers
+# we have an additional bitmask which is for Our Eyes Only
+
+# 0x01: bmKeepCurrentSoft
+# 0x02: bmRevertChanges
+# 0x04: bmCleanup
+# 0x08: bmForceReprogram
+# 0xFE: kTerminate
+# 0xFF: kReboot
+# note that eRestart checks if bit 7 is set: if it is,
+# and the value is not one of kTerminate or kReboot, it is IGNORED.
+if processor.restartCode:
+    code = processor.restartCode
+    if code & processor.bmMagicValue:
+        code = code ^ processor.bmMagicValue        
+    elif code & processor.bmForceReprogram:
+        os.unlink(zynq.CURRENT)
+        code = code ^ processor.bmForceReprogram
+    exit(code)
+exit(0)
