@@ -8,7 +8,7 @@ autoprog.py pysoceeprom.PySOCEEPROM
 
 # The TURF has a few other daemons running on it
 # automatically. List them here.
-AUTO_SERVICES="hskspibridge"
+AUTO_SERVICES="hskspibridge hskrouter"
 
 for service in ${AUTO_SERVICES} ; do
     systemctl start $service
