@@ -204,12 +204,11 @@ while not handler.terminate:
     while not packetsForUpstream.empty():
         pkt = packetsForUpstream.get()
         dst = pkt[1]
-        logger.info("trying to find an upstream for destination %s",
-                    hex(dst))
+        logger.info(f'trying to find an upstream for destination {hex(dst)}')
         for uh in upstreams:
+            logger.trace(f'upstream {uh.name} has sources {uh.sources}')
             if dst in uh.sources:
-                logger.info("forwarding packet to %s",
-                            uh.name)
+                logger.info(f'forwarding packet to {uh.name}')
                 uh.sendPacket(pkt)
                 
 logger.info("Terminating!")
