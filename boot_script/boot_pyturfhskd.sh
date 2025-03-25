@@ -28,8 +28,8 @@ catch_term() {
 
 trap catch_term SIGTERM
 
-# here's where pysurfHskd would run
-$PYTURFHSK &
+# here's where pyturfHskd would run
+$PYTURFHSKD &
 waitjob=$!
 
 wait $waitjob
