@@ -51,7 +51,7 @@ def addLoggingLevel(levelName, levelNum, methodName=None):
 addLoggingLevel('TRACE', logging.DEBUG-5)
 addLoggingLevel('DETAIL', logging.INFO-5)
 logger = logging.getLogger(LOG_NAME)
-logging.basicConfig(level=5)
+logging.basicConfig(level=30)
 
 # create the selector first
 sel = selectors.DefaultSelector()
