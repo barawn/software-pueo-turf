@@ -74,9 +74,37 @@ class TurfHskProcessor:
         rpkt.append(cks)
         self.hsk.sendPacket(rpkt)
 
+    def eEyeScanResults(self, pkt):
+        rpkt = bytearray(5)
+        rpkt[1] = pkt[0]
+        rpkt[0] = self.hsk.myID
+        rpkt[2] = 20        
+        if not len(pkt) > 5 or pkt[4] not in [0,1]:
+            # no eye scan specified you get nothin'
+            rpkt[3] = 0
+            rpkt[4] = 0
+        else:
+            if pkt[4] == 0:
+                res = self.startup.gbe_scan.results()
+            else:
+                res = self.startup.aurora_scan.results()
+            # check to see if we have results yet
+            if res:
+                rpkt[3] = len(res)+1
+                rpkt[4] = pkt[4]
+                rpkt += res
+                cks = (256 - sum(rpkt[4:])) & 0xFF
+                rpkt.append(cks)
+            else:
+                # nope. just send back nothin'
+                rpkt[3] = 1
+                rpkt[4] = 0
+                rpkt.append(0)
+        self.hsk.sendPacket(rpkt)
+
     def eStartState(self, pkt):
         if len(pkt) > 5:
-            self.startup.endState = rpkt[4]
+            self.startup.endState = pkt[4]
         rpkt = bytearray(6)
         rpkt[1] = pkt[0]
         rpkt[0] = self.hsk.myID
@@ -238,6 +266,7 @@ class TurfHskProcessor:
             16 : self.eTemps,
             17 : self.eVolts,
             18 : self.eIdentify,
+            20 : self.eEyeScanResults,
             32 : self.eStartState,
             129 : self.eFwNext,
             135 : self.eSoftNext,
