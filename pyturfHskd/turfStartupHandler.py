@@ -2,6 +2,8 @@ from enum import Enum
 import logging
 import os
 from pueo.common.bf import bf
+from pueo.common.uspeyescan import USPEyeScan
+from threading import Lock
 
 # the startup handler actually runs in the main
 # thread. it either writes a byte to a pipe to
@@ -35,6 +37,9 @@ class TurfStartupHandler:
         if self.endState is None:
             self.endState = self.StartupState.STARTUP_BEGIN
 
+        self.gbe_scan = SlowEyeScan('GBE', self.turf.pueo_turfgbe, self.logger)
+        self.aurora_scan = SlowEyeScan('AUR', self.turf.pueo_turfaurora, self.logger)
+        
     def _runNextTick(self):
         if not self.tick.full():
             self.tick.put(self.run)
@@ -68,8 +73,119 @@ class TurfStartupHandler:
                 dv = self.turf.DateVersion(self.turf.read(0x4))
                 self.logger.info("this is TURF %s", str(dv))
                 self.state = self.StartupState.STARTUP_END
+                self.gbe_scan.initialize()
+                self.aurora_scan.initialize()
                 self._runNextTick()
                 return
         elif self.state == self.StartupState.STARTUP_END:
+            # once we're in STARTUP_END we can background eyescan
+            self.gbe_scan.tick()
+            self.aurora_scan.tick()
             self._runNextTick()
             return
+
+class SlowEyeScan:
+    """ pass this a device which has a number of 'self.scanner' and a fn enableEyeScan """
+    def __init__(self, name, dev, logger):
+        self.name = name
+        self.dev = dev
+        self.state = [ None, None ]
+        self.numScanners = len(self.scanner)
+        self.logger = logger
+
+        verts = [ 96, 48, 0, -48, -96 ]
+        horzs = [ -0.375, -0.1875, 0, 0.1875, 0.375 ]
+        self.scan_seq = []
+        for v in verts:
+            for h in horzs:
+                self.scan_seq.append( [ h, v ] )
+        self.padding = b'\xff'*4 + b'\x00'*50
+        self.results = None
+        self.workingResults = None
+        self.workingScan = None
+        self.resultsLock = Lock()
+
+    def results(self):
+        with self.resultsLock:
+            return self.results
+        
+    def initialize(self):
+        self.logger.trace(f'{self.name} : initializing eye scan')
+        self.dev.enableEyeScan()
+        self.state = [ None, None ]
+        
+    def setNextChannelAndGetPadding(self):
+        """ Find the next active channel and return any padding. """
+        r = b''
+        ch = self.state[0]
+        if ch is None:
+            ch = 0
+        while not self.scanner[ch].up() and ch < self.numScanners:
+            self.logger.trace(f'{self.name} : skipping channel {ch} since not up')
+            r += self.padding
+            ch = ch + 1
+        if ch == self.numScanners:
+            self.state[0] = None
+        else:
+            self.state[0] = ch
+        return r
+
+    def finish(self):
+        with self.resultsLock:
+            self.results = self.workingResults
+            # and reset back to start. we'll pick up next tick.
+            self.state[0] = None
+            self.state[1] = None
+        
+            
+    def tick(self):
+        if self.state[0] is None:
+            self.logger.trace(f'{self.name} : beginning a new scan')
+            self.workingResults = self.setNextChannelAndGetPadding()
+            if self.state[0] is None:
+                # no up channels
+                self.logger.trace(f'{self.name} : no active channels to scan')
+                self.finish()
+                return
+            self.logger.trace(f'{self.name} : starting with channel {self.state[0]}')
+            self.state[1] = 0
+            self.workingScan = []
+            ch = self.state[0]
+            pt = self.scan_seq[0]
+            self.scanner[ch].horzoffset = pt[0]
+            self.scanner[ch].vertoffset = pt[1]
+            self.scanner[ch].start()
+            return
+        # ok we already were running. get the channel and point index
+        ch = self.state[0]
+        ptIdx = self.state[1]
+        # if the scan isn't done, try next tick
+        if not self.dev.scanner[ch].complete():
+            return
+        # scan was done, append the results
+        self.workingScan.append(self.dev.scanner[ch].results())
+        # move to next point
+        self.state[1] = ptIdx + 1
+        # are we past the last point?
+        if len(self.scan_seq) < self.state[1]:
+            # yes, compress and store the results
+            cr = USPEyeScan.compress_results(self.workingScan)
+            self.workingResults += cr
+            self.workingResults += self.setNextChannelAndGetPadding()
+            # are we past the last scanner?
+            if self.state[0] is None:
+                self.logger.trace(f'{self.name}: scan complete')
+                # yes, so complete, we'll start again next tick
+                self.finish()
+                return
+            self.logger.trace(f'{self.name}: moving to channel {self.state[0]}')
+
+        pt = self.scan_seq[ptIdx+1]
+        ch = self.state[0]
+        self.scanner[ch].horzoffset = pt[0]
+        self.scanner[ch].vertoffset = pt[1]
+        self.scanner[ch].start()
+            
+
+
+                
