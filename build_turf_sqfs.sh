@@ -11,7 +11,7 @@
 # at some point I thought all of this made sense
 
 # boot script is magic, it will always rename to boot.sh
-BOOTSCRIPT="boot_script/boot_hskspi.sh"
+BOOTSCRIPT="boot_script/boot_pyturfhskd.sh"
 
 # version script and file
 VERSCRIPT="./create_pueo_sqfs_version.py"

@@ -1,3 +1,5 @@
+#!/usr/bin/env python3
+
 # steal buckets upon buckets of stuff from
 # surf code
 
