@@ -158,6 +158,7 @@ class SlowEyeScan:
             pt = self.scan_seq[0]
             self.dev.scanner[ch].horzoffset = pt[0]
             self.dev.scanner[ch].vertoffset = pt[1]
+            self.dev.scanner[ch].prescale = 9
             self.dev.scanner[ch].start()
             return
         # ok we already were running. get the channel and point index
