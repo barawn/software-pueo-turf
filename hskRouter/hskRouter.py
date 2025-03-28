@@ -32,6 +32,7 @@ if os.path.exists(CONFIG_NAME):
     config['DownstreamTimeout'] = parser.getfloat('hskRouter', 'DownstreamTimeout', fallback=0.1)
     config['TurfSource'] = int(parser.get('hskRouter', 'TurfSource', fallback='0x60'), 0)
     config['TurfPath'] = parser.get('hskRouter', 'TurfPath', fallback='/dev/hskturf')
+    config['LocalPath'] = parser.get('hskRouter', 'LocalPath', fallback='/dev/hsklocal')
     for i in range(4):
         link = 'TURFIO'+str(i)
         config[link]['KnownSources'] = list(map(lambda x : int(x, 0),
@@ -86,6 +87,8 @@ if not wait_condition(lambda : os.path.exists('/dev/hskspi'),
     exit(1)
 
 turfpty = RawPTY(config['TurfPath'])
+# create local fake upstream
+localpty = RawPTY(config['LocalPath'])
 
 sel = selectors.DefaultSelector()
 handler = SignalHandler(sel)
@@ -114,6 +117,14 @@ upstreams.append( SerHandler(sel,
                              name="SFC",
                              logName=LOG_NAME,
                              port='/dev/hskspi') )
+# local fake upstream
+lh = SerHandler(sel,
+                name="LOCAL",
+                logName=LOG_NAME,
+                port=None)
+localpty.serial_attach(lh.port)
+upstreams.append(lh)
+
 # make an upstream handler factory function
 # see e.g. https://eev.ee/blog/2011/04/24/gotcha-python-scoping-closures/
 def makeUpstreamHandler(uph):
