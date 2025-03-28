@@ -22,7 +22,8 @@ PYTHON_SINGLE_FILES="pueo-utils/pysoceeprom/pysoceeprom.py \
 	        pueo-utils/pyzynqmp/pyzynqmp.py \
 		pueo-utils/signalhandler/signalhandler.py \
 	      	sit5157/sit5157.py \
-		rawpty/rawpty.py"
+		rawpty/rawpty.py \
+		pueo-utils/HskSerial/HskSerial.py"
 
 # multi-file python modules wrapped in directories
 PYTHON_DIRS="hskSpiBridge/ \
