@@ -164,7 +164,7 @@ class SerPacketHandler(Packetizer):
         try:
             pkt = cobs.decode(packet)
         except cobs.DecodeError:
-            self.handleErrorPacket(pkt, "COBS decode error")
+            self.handleErrorPacket(packet, "COBS decode error")
             return
         # COBS decode ok. At this point just flag that we got something.
         if self.inPacketEvent:
