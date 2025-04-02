@@ -26,7 +26,7 @@ class TurfHskProcessor:
         rpkt[0] = self.hsk.myID
         rpkt[2] = 15
         rpkt[3] = len(s)
-        rpkt += self.hsk.statistics()
+        rpkt += bytearray(self.hsk.statistics())
         rpkt.append((256-sum(rpkt[4:8])) & 0xFF)
         self.hsk.sendPacket(rpkt)
     
