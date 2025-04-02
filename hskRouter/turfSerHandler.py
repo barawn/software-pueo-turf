@@ -155,7 +155,7 @@ class SerPacketHandler(Packetizer):
         with self._statisticsLock:
             self._errorPackets = self._errorPackets + 1
             errorPackets = self._errorPackets
-        self.logger.error(msg+" #%d : %s ", errorPackets, packet.hex(sep=' '))
+        self.logger.error(msg+" #%d : %s ", errorPackets, pkt.hex(sep=' '))
         
     def handle_packet(self, packet):
         """ implement the handle_packet function """
