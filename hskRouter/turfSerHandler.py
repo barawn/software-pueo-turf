@@ -177,7 +177,7 @@ class SerPacketHandler(Packetizer):
             self.handleErrorPacket(pkt, "Packet too short")
             return
         if pkt[3] != pktLen-5:
-            self.handleErrorPacket(pkt, "Length of data (%d) doesn't match expected" % pktLen-5)
+            self.handleErrorPacket(pkt, "Length of data (%d) doesn't match expected" % (pktLen-5))
             return
         if sum(pkt[4:]) % 256:
             self.handleErrorPacket(pkt, "Invalid checksum")
