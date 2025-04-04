@@ -113,6 +113,8 @@ class SlowEyeScan:
         
     def initialize(self):
         self.logger.trace(f'{self.name} : initializing eye scan')
+        # this is now safe in the sense that it should not reset
+        # the link if the eye scan was already enabled
         self.dev.enableEyeScan()
         self.state = [ None, None ]
         
