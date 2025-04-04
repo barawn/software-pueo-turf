@@ -4,9 +4,9 @@ import struct
 import spi
 import selectors
 import logging
-import argparse
 import os
 import sys
+import configparser
 from rawpty import RawPTY
 from signalhandler import SignalHandler
 
@@ -16,9 +16,19 @@ from hskSpi import HskSPI
 
 EVENTPATH="/dev/input/by-path/platform-hsk-gpio-keys-event"
 LOG_NAME="hskSpi"
-PTYNAME = "/dev/hskspi"
-LOG_LEVEL=logging.WARNING
-CHUNKSIZE=32
+CONFIG_NAME = "/usr/local/pylib/hskSpiBridge/hskSpiBridge.ini"
+
+config = {}
+config['LogLevel'] = logging.WARNING
+config['HskPath'] = "/dev/hskspi"
+config['ChunkSize'] = 32
+
+if os.path.exists(CONFIG_NAME):
+    parser = configparser.ConfigParser()
+    parser.read(CONFIG_NAME)
+    config['LogLevel'] = parser.getint('hskSpiBridge', 'LogLevel', fallback=config['LogLevel'])
+    config['HskPath'] = parser.get('hskSpiBridge', 'LogLevel', fallback=config['HskPath'])
+    config['ChunkSize'] = parser.getint('hskSpiBridge', 'ChunkSize', fallback=config['ChunkSize'])
 
 # https://stackoverflow.com/questions/2183233/how-to-add-a-custom-loglevel-to-pythons-logging-facility/35804945
 def addLoggingLevel(levelName, levelNum, methodName=None):
@@ -61,25 +71,13 @@ class Event:
 
 
 if __name__ == "__main__":
-    # Create the argument parser.
-    parser = argparse.ArgumentParser()
-    parser.add_argument('-v', '--verbose', action='count', default=0)
-    parser.add_argument('-p', '--pty', type=str, default=PTYNAME)
-    parser.add_argument('-c', '--chunksize', type=int, default=CHUNKSIZE)
-    # and parse arguments
-    args = parser.parse_args()
-
-    # Create the logger. Make first '-v' count double.
-    if args.verbose:
-        args.verbose += 1
-    logLevel = LOG_LEVEL - 5*args.verbose
     addLoggingLevel('TRACE', logging.DEBUG - 5)
     addLoggingLevel('DETAIL', logging.INFO - 5)
     logger = logging.getLogger(LOG_NAME)
-    logging.basicConfig(level=logLevel)
+    logging.basicConfig(level=config['LogLevel'])
     
     # get the SPI device
-    dev = HskSPI()
+    dev = HskSPI(chunk_size=config['ChunkSize'])
 
     # create the selector
     sel = selectors.DefaultSelector()
@@ -88,7 +86,7 @@ if __name__ == "__main__":
     handler = SignalHandler(sel)
 
     # create pty.
-    pty = RawPTY(wellKnownName=args.pty)
+    pty = RawPTY(wellKnownName=config['HskPath'])
 
     with open(EVENTPATH, "rb") as evf:
         def handleDownstream(f, m):
