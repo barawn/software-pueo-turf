@@ -156,7 +156,19 @@ class SerPacketHandler(Packetizer):
             self._errorPackets = self._errorPackets + 1
             errorPackets = self._errorPackets
         self.logger.error(msg+" #%d : %s ", errorPackets, pkt.hex(sep=' '))
-        
+
+    def cobs_recovery(self, packet):
+        """ Attempt to recover a COBS packet that might have early garbage. """
+        min_size = 6
+        while not len(packet) < min_size:
+            packet = packet[1:]
+            try:
+                pkt = cobs.decode(packet)
+                return pkt
+            except cobs.DecodeError:
+                pass
+        return None
+    
     def handle_packet(self, packet):
         """ implement the handle_packet function """
         if len(packet) == 0:
@@ -164,8 +176,12 @@ class SerPacketHandler(Packetizer):
         try:
             pkt = cobs.decode(packet)
         except cobs.DecodeError:
-            self.handleErrorPacket(packet, "COBS decode error")
-            return
+            # attempt to recover packet. this is rare so
+            # don't care about the overhead
+            pkt = self.cobs_recovery(packet)
+            if pkt is None:
+                self.handleErrorPacket(packet, "COBS decode error")
+                return
         # COBS decode ok. At this point just flag that we got something.
         if self.inPacketEvent:
             self.inPacketEvent.set()
