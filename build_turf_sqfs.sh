@@ -10,6 +10,16 @@
 #
 # at some point I thought all of this made sense
 
+NECESSARY_SUBMODULES="pueo_utils \
+		      pueo-python"
+for p in ${NECESSARY_SUBMODULES} ; do
+    if [ ! -f ${p}/README.md ] ; then
+	echo "The ${p} submodule looks empty! Aborting!"
+	exit 1
+    fi
+done
+
+
 # boot script is magic, it will always rename to boot.sh
 BOOTSCRIPT="boot_script/boot_pyturfhskd.sh"
 
