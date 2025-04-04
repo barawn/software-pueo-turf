@@ -27,7 +27,7 @@ if os.path.exists(CONFIG_NAME):
     parser = configparser.ConfigParser()
     parser.read(CONFIG_NAME)
     config['LogLevel'] = parser.getint('hskSpiBridge', 'LogLevel', fallback=config['LogLevel'])
-    config['HskPath'] = parser.get('hskSpiBridge', 'LogLevel', fallback=config['HskPath'])
+    config['HskPath'] = parser.get('hskSpiBridge', 'HskPath', fallback=config['HskPath'])
     config['ChunkSize'] = parser.getint('hskSpiBridge', 'ChunkSize', fallback=config['ChunkSize'])
 
 # https://stackoverflow.com/questions/2183233/how-to-add-a-custom-loglevel-to-pythons-logging-facility/35804945
