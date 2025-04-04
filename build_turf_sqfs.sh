@@ -10,7 +10,7 @@
 #
 # at some point I thought all of this made sense
 
-NECESSARY_SUBMODULES="pueo_utils \
+NECESSARY_SUBMODULES="pueo-utils \
 		      pueo-python"
 for p in ${NECESSARY_SUBMODULES} ; do
     if [ ! -f ${p}/README.md ] ; then
