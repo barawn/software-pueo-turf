@@ -47,9 +47,9 @@ class HskSPI():
                 return devname
         return None
 
-    def __init__(self, speed=30000000):
+    def __init__(self, speed=30000000, chunk_size=32):
         self.rspi = HskRSPI(self.spi_find_device('osu,turfhskRead'),
-                            speed=speed)
+                            speed=speed, chunk_size=chunk_size)
         self.wspi = HskWSPI(self.spi_find_device('osu,turfhskWrite'),
                             speed=speed)
         self.read = self.rspi.read
