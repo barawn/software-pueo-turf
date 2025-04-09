@@ -131,7 +131,7 @@ class SlowEyeScan:
             ch = ch + 1
         while ch < self.numScanners:
             up = self.dev.scanner[ch].up()
-            setup = self.setupLinks[i]
+            setup = self.setupLinks[ch]
             if up and setup:
                 break
             else:
