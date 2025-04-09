@@ -84,7 +84,10 @@ class TurfStartupHandler:
             self.gbe_scan.tick()
             self.aurora_scan.tick()
             self._runNextTick()
-            return            
+            return
+        else:
+            # keepalive
+            self._runNextTick()
 
 class SlowEyeScan:
     """ pass this a device which has a number of 'self.scanner' and a fn enableEyeScan """
@@ -115,7 +118,7 @@ class SlowEyeScan:
         self.logger.trace(f'{self.name} : initializing eye scan')
         # this is now safe in the sense that it should not reset
         # the link if the eye scan was already enabled
-        self.dev.enableEyeScan()
+        self.setupLinks = self.dev.enableEyeScan()
         self.state = [ None, None ]
         
     def setNextChannelAndGetPadding(self):
@@ -126,10 +129,18 @@ class SlowEyeScan:
             ch = 0
         else:
             ch = ch + 1
-        while ch < self.numScanners and not self.dev.scanner[ch].up():
-            self.logger.trace(f'{self.name} : skipping channel {ch} since not up')
-            r += self.padding
-            ch = ch + 1
+        while ch < self.numScanners:
+            up = self.dev.scanner[ch].up()
+            setup = self.setupLinks[i]
+            if up and setup:
+                break
+            else:
+                if not up:
+                    self.logger.debug(f'{self.name} : skipping channel {ch} since not up')
+                else:
+                    self.logger.info(f'{self.name} : channel {ch} is up now, but was not setup - skipping')
+                r += self.padding
+                ch = ch + 1
         if ch == self.numScanners:
             self.state[0] = None
         else:
