@@ -6,6 +6,12 @@ systemctl daemon-reload
 # we have to program the FPGA first before services start
 autoprog.py pysoceeprom.PySOCEEPROM
 
+# Now we need to fetch the persistent config files on the eMMC.
+CONFIGFILE_DEST="/usr/local/share/"
+mount /media
+cp /media/*.ini ${CONFIGFILE_DEST}
+umount /media
+
 # The TURF has a few other daemons running on it
 # automatically. List them here.
 AUTO_SERVICES="hskspibridge hskrouter"

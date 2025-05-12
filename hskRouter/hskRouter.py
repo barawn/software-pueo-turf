@@ -18,17 +18,23 @@ sys.path.append(os.path.dirname(__file__))
 from turfSerHandler import SerHandler
 
 LOG_NAME = "hskRouter"
-CONFIG_NAME = "/usr/local/pylib/hskRouter/hskRouter.ini"
+DEFAULT_CONFIG_NAME = "/usr/local/pylib/hskRouter/hskRouter.ini"
+CONFIG_NAME="/usr/local/share/hskRouter.ini"
 
 # configy stuff. just set up the dicts
 config = {}
 for i in range(4):
     config['TURFIO'+str(i)] = {}
-    
+
+nm = DEFAULT_CONFIG_NAME
 if os.path.exists(CONFIG_NAME):
-    parser = configparser.ConfigParser()
-    parser.read(CONFIG_NAME)
+    nm = CONFIG_NAME
+    
+if os.path.exists(nm):
+    parser = configparser.ConfigParser(converters={'list': lambda x: [i.strip() for i in x.split(',')] if len(x) > 0 else []})
+    parser.read(nm)
     config['LogLevel'] = parser.getint('hskRouter', 'LogLevel', fallback=30)
+    config['Upstreams'] = parser.getlist('hskRouter', 'Upstreams', fallback=["HSK0", "HSK1", "SFC", "LOCAL"])
     config['DownstreamTimeout'] = parser.getfloat('hskRouter', 'DownstreamTimeout', fallback=0.1)
     config['TurfSource'] = int(parser.get('hskRouter', 'TurfSource', fallback='0x60'), 0)
     config['TurfPath'] = parser.get('hskRouter', 'TurfPath', fallback='/dev/hskturf')
@@ -36,7 +42,7 @@ if os.path.exists(CONFIG_NAME):
     for i in range(4):
         link = 'TURFIO'+str(i)
         config[link]['KnownSources'] = list(map(lambda x : int(x, 0),
-                                                parser.get(link, 'KnownSources', fallback=[])))
+                                                parser.getlist(link, 'KnownSources', fallback=[])))
 
 # https://stackoverflow.com/questions/45455898/polling-for-a-maximum-wait-time-unless-condition-in-python-2-7
 def wait_condition(condition, timeout=5.0, granularity=0.3, time_factory=time):
@@ -107,23 +113,28 @@ packetsForUpstream = queue.Queue()
 
 # true serial upstreams
 for i in range(2):
-    upstreams.append( SerHandler(sel,
-                                 name="HSK"+str(i),
-                                 logName=LOG_NAME,
-                                 port='/dev/ttySC'+str(i),
-                                 baud=460800) )
+    nm="HSK"+str(i)
+    if nm in config['Upstreams']:
+        upstreams.append( SerHandler(sel,
+                                     name=nm,
+                                     logName=LOG_NAME,
+                                     port='/dev/ttySC'+str(i),
+                                     baud=460800) )
+        
 # ethernet upstream fakey serial
-upstreams.append( SerHandler(sel,
-                             name="SFC",
-                             logName=LOG_NAME,
-                             port='/dev/hskspi') )
+if 'SFC' in config['Upstreams']:
+    upstreams.append( SerHandler(sel,
+                                 name="SFC",
+                                 logName=LOG_NAME,
+                                 port='/dev/hskspi') )
 # local fake upstream
-lh = SerHandler(sel,
-                name="LOCAL",
-                logName=LOG_NAME,
-                port=None)
-localpty.serial_attach(lh.port)
-upstreams.append(lh)
+if 'LOCAL' in config['Upstreams']:
+    lh = SerHandler(sel,
+                    name="LOCAL",
+                    logName=LOG_NAME,
+                    port=None)
+    localpty.serial_attach(lh.port)
+    upstreams.append(lh)
 
 # make an upstream handler factory function
 # see e.g. https://eev.ee/blog/2011/04/24/gotcha-python-scoping-closures/

@@ -16,16 +16,21 @@ from hskSpi import HskSPI
 
 EVENTPATH="/dev/input/by-path/platform-hsk-gpio-keys-event"
 LOG_NAME="hskSpi"
-CONFIG_NAME = "/usr/local/pylib/hskSpiBridge/hskSpiBridge.ini"
+DEFAULT_CONFIG_NAME = "/usr/local/pylib/hskSpiBridge/hskSpiBridge.ini"
+CONFIG_NAME = "/usr/local/share/hskSpiBridge.ini"
 
 config = {}
 config['LogLevel'] = logging.WARNING
 config['HskPath'] = "/dev/hskspi"
 config['ChunkSize'] = 32
 
+nm = DEFAULT_CONFIG_NAME
 if os.path.exists(CONFIG_NAME):
+    nm = CONFIG_NAME
+
+if os.path.exists(nm)
     parser = configparser.ConfigParser()
-    parser.read(CONFIG_NAME)
+    parser.read(nm)
     config['LogLevel'] = parser.getint('hskSpiBridge', 'LogLevel', fallback=config['LogLevel'])
     config['HskPath'] = parser.get('hskSpiBridge', 'HskPath', fallback=config['HskPath'])
     config['ChunkSize'] = parser.getint('hskSpiBridge', 'ChunkSize', fallback=config['ChunkSize'])
