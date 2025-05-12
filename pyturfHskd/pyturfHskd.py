@@ -12,6 +12,7 @@ import logging
 
 from electronics.gateways import LinuxDevice
 from sit5157 import SiT5157
+from gpio import GPIO
 
 from pueoTimer import HskTimer
 from signalhandler import SignalHandler
@@ -107,10 +108,16 @@ logger.info("starting up")
 zynq = PyZynqMP()
 turf = PueoTURF(PueoTURF.axilite_bridge(), 'AXI')
 # make this parameterizable later
-useThisClock = 0x6A
+useThisClock = 0x62
 logger.info(f'using clock {useThisClock:#0x}')
 clk = SiT5157(LinuxDevice(1), useThisClock)
 clk.enable = 1
+
+clksel = GPIO(GPIO.get_gpio_pin(25, 'MIO'), 'out')
+if useThisClock == 0x6A:
+    clksel.write(1)
+else:
+    clksel.write(0)
 
 ###########################################################################
 # STARTUP HANDLER
