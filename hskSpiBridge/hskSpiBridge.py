@@ -28,7 +28,7 @@ nm = DEFAULT_CONFIG_NAME
 if os.path.exists(CONFIG_NAME):
     nm = CONFIG_NAME
 
-if os.path.exists(nm)
+if os.path.exists(nm):
     parser = configparser.ConfigParser()
     parser.read(nm)
     config['LogLevel'] = parser.getint('hskSpiBridge', 'LogLevel', fallback=config['LogLevel'])
