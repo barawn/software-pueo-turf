@@ -56,6 +56,13 @@ addLoggingLevel('DETAIL', logging.INFO-5)
 logger = logging.getLogger(LOG_NAME)
 logging.basicConfig(level=30)
 
+# just blitz the TURFIOs first
+for i in range(4):
+    # defaults to zero
+    rst = GPIO(GPIO.get_gpio_pin(12+i), 'out')
+    rst.write(1)
+    del rst
+
 # create the selector first
 sel = selectors.DefaultSelector()
 # now create our tick FIFO
