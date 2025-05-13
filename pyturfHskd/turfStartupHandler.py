@@ -189,8 +189,13 @@ class SlowEyeScan:
             self.logger.debug(f'{self.name}: channel {self.state[0]} complete')
             # yes, compress and store the results
             self.logger.trace(f'{self.name}: {self.workingScan}')
-            cr = USPEyeScan.compress_results(self.workingScan)
-            self.workingResults += cr
+            try:
+                cr = USPEyeScan.compress_results(self.workingScan)
+                self.workingResults += cr                
+            except OverflowError:
+                self.logger.error(f'{self.name}: garbage results from eye scan, throwing away')
+                self.workingResults += self.padding
+                
             self.workingResults += self.setNextChannelAndGetPadding()
             # are we past the last scanner?
             if self.state[0] is None:
