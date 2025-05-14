@@ -14,3 +14,8 @@ stored in the squashfs, but they can be __overridden__ by placing
 the INI file in the eMMC (which can be mounted via ``mnt /media``).
 Please remember to unmount it, and ignore the fsck warning since it
 always seems to be there.
+
+The config files in the eMMC are copied to ``/usr/local/share`` so
+you can also put files there (but they will not persist, obviously).
+The config files do not need to be present - if they're not available
+the program will just use their default config file in their directory.
