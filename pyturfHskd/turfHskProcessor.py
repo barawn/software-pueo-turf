@@ -4,6 +4,7 @@ from subprocess import Popen, PIPE, TimeoutExpired
 from pathlib import Path
 import pickle
 import struct
+from gpio import GPIO
 
 class TurfHskProcessor:
     kReboot = 0xFF
@@ -248,6 +249,43 @@ class TurfHskProcessor:
                 return
         self.restartCode = code
         self.terminate()        
+
+    def eCommandReset(self, pkt):
+        d = pkt[4:-1]
+        ok = True if len(d) else False
+        if len(d):
+            # cmdResetTURFIO
+            if d[0] == 1:
+                if len(d) >= 2:
+                    tioMask = d[1]
+                    for i in range(4):
+                        if tioMask & (1<<i):
+                            gpio = GPIO(GPIO.get_gpio_pin(12+i), 'out')
+                            gpio.write(1)
+                            del gpio
+                else:
+                    ok = False
+            else:
+                # we have no other implemented command resets right now
+                ok = False
+        if not ok:
+            rpkt = bytearray(5)
+            rpkt[1] = pkt[0]
+            rpkt[0] = self.hsk.myID
+            rpkt[2] = 0xFF
+            rpkt[3] = 0
+            rpkt[4] = 0
+        else:
+            rpkt = bytearray(6)
+            rpkt[1] = pkt[0]
+            rpkt[0] = self.hsk.myID
+            rpkt[2] = pkt[2]
+            rpkt[3] = 1
+            rpkt[4] = pkt[4]
+            rpkt[5] = (256-pkt[4]) & 0xFF
+        self.hsk.sendPacket(rpkt)
+
+            
         
     # this guy is like practically the whole damn program
     def __init__(self,
@@ -271,8 +309,9 @@ class TurfHskProcessor:
             32 : self.eStartState,
             129 : self.eFwNext,
             135 : self.eSoftNext,
-            189 : self.eJournal,
-            191 : self.eRestart
+            189 : self.eJournal,            
+            191 : self.eRestart,
+            203 : self.eCommandReset
         }        
         self.hsk = hsk
         self.zynq = zynq
