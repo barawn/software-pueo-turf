@@ -11,7 +11,7 @@ separate journals for each.
 Each of these either has or will have an INI-style configuration script
 (read with configparser). The __default__ configuration scripts are
 stored in the squashfs, but they can be __overridden__ by placing
-the INI file in the eMMC (which can be mounted via ``mnt /media``).
+the INI file in the eMMC (which can be mounted via ``mount /media``).
 Please remember to unmount it, and ignore the fsck warning since it
 always seems to be there.
 
