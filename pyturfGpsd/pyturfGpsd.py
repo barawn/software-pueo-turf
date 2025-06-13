@@ -1,3 +1,5 @@
+#!/usr/bin/env python3
+
 # this is not a gpsd
 # it is amazingly dumb
 from serial import Serial
