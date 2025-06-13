@@ -1,0 +1,11 @@
+[Unit]
+Description=PUEO TURF GPS daemon
+
+[Service]
+ExecStart=/usr/local/pylib/pyturfGpsd/pyturfGpsd.py
+Type=simple
+StandardOutput=journal
+Restart=always
+
+[Install]
+WantedBy=multi-user.target
