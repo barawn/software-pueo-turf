@@ -40,7 +40,8 @@ PYTHON_SINGLE_FILES="pueo-utils/pysoceeprom/pysoceeprom.py \
 # multi-file python modules wrapped in directories
 PYTHON_DIRS="hskSpiBridge/ \
 	     hskRouter/ \
-	     pyturfGpsd/"
+	     pyturfGpsd/ \
+	     pynmea2/pynmea2/"
 
 # scripts
 SCRIPTS="pueo-utils/scripts/build_squashfs \
