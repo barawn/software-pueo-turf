@@ -14,7 +14,7 @@ umount /media
 
 # The TURF has a few other daemons running on it
 # automatically. List them here.
-AUTO_SERVICES="hskspibridge hskrouter"
+AUTO_SERVICES="hskspibridge hskrouter pyturfgpsd"
 
 for service in ${AUTO_SERVICES} ; do
     systemctl start $service
