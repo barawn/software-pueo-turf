@@ -12,11 +12,15 @@ from rawpty import RawPTY
 DEFAULT_CONFIG_NAME = "/usr/local/pylib/pyturfGpsd/pyturfGpsd.ini"
 CONFIG_NAME = "/usr/local/share/pyturfGpsd.ini"
 
+output_types = { 0 : lambda x : x.to_bytes(4,byteorder='little'),
+                 1 : lambda x : str(x).encode() }
+
 config = {}
 config['LogLevel'] = logging.WARNING
 config['GpsPath'] = '/dev/ttyPS1'
 config['GpsBaud'] = 38400
-conifg['PpsPath'] = '/dev/turfpps'
+config['PpsPath'] = '/dev/turfpps'
+config['OutputType'] = 0
 
 nm = DEFAULT_CONFIG_NAME
 if os.path.exists(CONFIG_NAME):
@@ -37,6 +41,9 @@ if os.path.exists(nm):
     config['PpsPath'] = parser.get('pyturfGpsd',
                                    'PpsPath',
                                    fallback=config['PpsPath'])
+    config['OutputType'] = parser.getint('pyturfGpsd',
+                                         'OutputType',
+                                         fallback=config['OutputType'])
 
 # https://stackoverflow.com/questions/2183233/how-to-add-a-custom-loglevel-to-pythons-logging-facility/35804945
 def addLoggingLevel(levelName, levelNum, methodName=None):
@@ -70,6 +77,12 @@ if __name__ == "__main__":
     logger = logging.getLogger(LOG_NAME)
     logging.basicConfig(level=config['LogLevel'])
 
+    ot = config['OutputType']
+    if ot not in output_types:
+        logger.error(f'Output type {ot} not understood: using 0')
+        ot = 0
+    formatter = output_types[ot]
+    
     gps = Serial(config['GpsPath'], baudrate=config['GpsBaud'])
     
     pty = RawPTY(wellKnownName=config['PpsPath'])
@@ -79,8 +92,8 @@ if __name__ == "__main__":
             line = gps.read_until(b'\r\n').strip(b'\r\n').decode()
             msg = pynmea2.parse(line)
             if type(msg) == pynmea2.RMC:
-                tm = int(msg.datetime.timestamp())
-                pty.write(tm.to_bytes(4, byteorder='little'))
+                tm = int(msg.datetime.timestamp())                
+                pty.write(formatter(tm))
         except serial.SerialException as e:
             print(f'Device error: {repr(e)}')
             break
