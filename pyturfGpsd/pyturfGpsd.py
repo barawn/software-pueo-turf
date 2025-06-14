@@ -9,6 +9,7 @@ import logging
 
 from rawpty import RawPTY
 
+LOG_NAME = "pyturfGpsd"
 DEFAULT_CONFIG_NAME = "/usr/local/pylib/pyturfGpsd/pyturfGpsd.ini"
 CONFIG_NAME = "/usr/local/share/pyturfGpsd.ini"
 
