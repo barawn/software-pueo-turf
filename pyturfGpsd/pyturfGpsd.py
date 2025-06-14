@@ -153,8 +153,8 @@ if __name__ == "__main__":
             line = gps.read_until(b'\r\n').strip(b'\r\n').decode()
             msg = pynmea2.parse(line)
             if type(msg) == pynmea2.RMC:                
-                tm = int(msg.datetime.timestamp())                
-                server.broadcast(formatter(msg))
+                tm = int(msg.datetime.timestamp())
+                server.broadcast(formatter(tm))
         except SerialException as e:
             print(f'Device error: {repr(e)}')
             break
