@@ -8,7 +8,7 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Read bytes from a named Unix socket.")
     parser.add_argument("path", help="Named socket path")
     parser.add_argument("nb", type=int, help="Number of bytes to read")
-    parser.add_argument("--hex")
+    parser.add_argument("--hex", action="store_true", help="printout in hex")
     
     args = parser.parse_args()
 
