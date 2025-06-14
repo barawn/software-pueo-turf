@@ -2,13 +2,66 @@
 
 # this is not a gpsd
 # it is amazingly dumb
+# and yet it takes A MONUMENTAL AMOUNT OF GODDAMN EFFORT
+# LIKE EVERYTHING AAUUUUUGHHHH
+
 from serial import Serial, SerialException
 import pynmea2
 import configparser
 import logging
+import socket
 import os
+import threading
 
-from rawpty import RawPTY
+# We don't want to use rawpty since it buffers.
+# We want to use a named Unix socket.
+# This also allows us to have multiple clients.
+
+class UnixSocketBroadcaster:
+    def __init__(self, path, logger):
+        self.path = path
+        self.logger = logger
+        os.unlink(path)
+        self.server = socket.socket(socket.AF_UNIX,
+                                    socket.SOCK_STREAM)
+        self.server.bind(path)
+        self.terminate = False
+        self.server_thread = threading.Thread(target=self._listen_thread)
+        self.start = self.server_thread.start
+        
+        self.clients = []
+        self.client_lock = threading.Lock()
+
+    def stop(self):
+        self.terminate = True
+        self.server_thread.join()
+        os.unlink(self.path)
+        
+    def _listen_thread(self):
+        self.server.listen()
+        while not self.terminate:
+            client, address = self.server.accept()
+            self.logger.info(f'New client: {address}')
+            client.settimeout(0.2)
+            with self.client_lock:
+                self.clients.append((client,address))
+
+    def broadcast(self, msg):
+        with self.client_lock:
+            failed_clients = []
+            for ct in self.clients:
+                client = ct[0]
+                address = ct[1]
+                try:
+                    nb = client.send(msg)
+                    if nb == 0:
+                        raise Exception('Disconnected')
+                except Exception as e:
+                    self.logger.info(f'Client {address} exception {repr(e)}')
+                    failed_clients.append(ct)
+            for fc in failed_clients:
+                self.logger.info(f'Removing client {fc[1]}')
+                self.clients.remove(fc)
 
 LOG_NAME = "pyturfGpsd"
 DEFAULT_CONFIG_NAME = "/usr/local/pylib/pyturfGpsd/pyturfGpsd.ini"
@@ -21,7 +74,7 @@ config = {}
 config['LogLevel'] = logging.WARNING
 config['GpsPath'] = '/dev/ttyPS1'
 config['GpsBaud'] = 38400
-config['PpsPath'] = '/dev/turfpps'
+config['PpsPath'] = '/tmp/turfpps'
 config['OutputType'] = 0
 
 nm = DEFAULT_CONFIG_NAME
@@ -86,16 +139,19 @@ if __name__ == "__main__":
     formatter = output_types[ot]
     
     gps = Serial(config['GpsPath'], baudrate=config['GpsBaud'])
-    
-    pty = RawPTY(wellKnownName=config['PpsPath'])
 
+    server = UnixSocketBroadcaster(config['PpsPath'],
+                                   logger)
+
+    server.start()
+    
     while True:
         try:
             line = gps.read_until(b'\r\n').strip(b'\r\n').decode()
             msg = pynmea2.parse(line)
-            if type(msg) == pynmea2.RMC:
+            if type(msg) == pynmea2.RMC:                
                 tm = int(msg.datetime.timestamp())                
-                os.write(pty.pty, formatter(tm))
+                server.broadcast(formatter(msg))
         except SerialException as e:
             print(f'Device error: {repr(e)}')
             break
