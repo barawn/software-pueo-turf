@@ -2,10 +2,11 @@
 
 # this is not a gpsd
 # it is amazingly dumb
-from serial import Serial
+from serial import Serial, SerialException
 import pynmea2
 import configparser
 import logging
+import os
 
 from rawpty import RawPTY
 
@@ -94,8 +95,8 @@ if __name__ == "__main__":
             msg = pynmea2.parse(line)
             if type(msg) == pynmea2.RMC:
                 tm = int(msg.datetime.timestamp())                
-                pty.write(formatter(tm))
-        except serial.SerialException as e:
+                os.write(pty.pty, formatter(tm))
+        except SerialException as e:
             print(f'Device error: {repr(e)}')
             break
         except pynmea2.ParseError as e:
