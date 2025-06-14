@@ -21,7 +21,10 @@ class UnixSocketBroadcaster:
     def __init__(self, path, logger):
         self.path = path
         self.logger = logger
-        os.unlink(path)
+        try:
+            os.unlink(path)
+        except FileNotFoundError:
+            pass
         self.server = socket.socket(socket.AF_UNIX,
                                     socket.SOCK_STREAM)
         self.server.bind(path)
