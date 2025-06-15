@@ -43,6 +43,7 @@ class TurfStartupHandler:
         self.use_gps = True
         self.gps_trials = 50
         self.gps_path = '/tmp/turfpps'
+        self.gps_socket = None
         
         self.rfd, self.wfd = os.pipe2(os.O_NONBLOCK | os.O_CLOEXEC)
         if self.endState is None:
