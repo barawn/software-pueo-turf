@@ -12,6 +12,13 @@ import logging
 import socket
 import os
 import threading
+import signal
+import sys
+
+def sigterm_handler(_signo, _stack_frame):
+    # raises the SystemExit exception
+    sys.exit(0)
+    
 
 from usock import UnixSocketBroadcaster
 
@@ -99,8 +106,9 @@ if __name__ == "__main__":
     server = UnixSocketBroadcaster(config['PpsPath'],
                                    logger)
 
+    signal.signal(signal.SIGTERM, sigterm_handler)
     server.start()
-    
+
     while True:
         try:
             line = gps.read_until(b'\r\n').strip(b'\r\n').decode()
@@ -114,3 +122,5 @@ if __name__ == "__main__":
         except pynmea2.ParseError as e:
             print(f'NMEA parse error: {repr(e)}')
             continue
+        finally:
+            server.stop()

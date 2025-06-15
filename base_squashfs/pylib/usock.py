@@ -3,6 +3,7 @@
 import argparse
 import socket
 import sys
+import os
 
 # Dumb classes/functions for simple
 # Unix socket behavior.
