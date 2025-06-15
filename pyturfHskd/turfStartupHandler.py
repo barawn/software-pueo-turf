@@ -105,9 +105,15 @@ class TurfStartupHandler:
                 return
         elif self.state == self.StartupState.SETUP_GPS:
             self.gps_ntrial = 0
-            self.gps_socket = socket.socket(socket.AF_UNIX,
-                                            socket.SOCK_STREAM)
-            self.gps_socket.connect(self.gps_path)
+            if not self.gps_socket:
+                self.gps_socket = socket.socket(socket.AF_UNIX,
+                                                socket.SOCK_STREAM)
+            try:
+                self.gps_socket.connect(self.gps_path)
+            except FileNotFoundError:
+                self.logger.warning(f'{self.gps_path} not found, waiting...')
+                self._runNextTick()
+                return                
             self.gps_socket.settimeout(0.1)
             self._runImmediate()
             return
