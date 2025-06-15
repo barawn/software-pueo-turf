@@ -3,6 +3,8 @@ import logging
 import os
 from pueo.common.bf import bf
 from pueo.common.uspeyescan import USPEyeScan
+
+import socket
 from threading import Lock
 
 # the startup handler actually runs in the main
