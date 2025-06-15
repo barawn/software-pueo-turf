@@ -116,6 +116,7 @@ class TurfStartupHandler:
                 self._runNextTick()
                 return                
             self.gps_socket.settimeout(0.1)
+            self.state = self.StartupState.WAIT_GPS
             self._runImmediate()
             return
         elif self.state == self.StartupState.WAIT_GPS:
