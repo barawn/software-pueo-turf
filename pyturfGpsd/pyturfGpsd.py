@@ -13,58 +13,11 @@ import socket
 import os
 import threading
 
+from usock import UnixSocketBroadcaster
+
 # We don't want to use rawpty since it buffers.
 # We want to use a named Unix socket.
 # This also allows us to have multiple clients.
-
-class UnixSocketBroadcaster:
-    def __init__(self, path, logger):
-        self.path = path
-        self.logger = logger
-        try:
-            os.unlink(path)
-        except FileNotFoundError:
-            pass
-        self.server = socket.socket(socket.AF_UNIX,
-                                    socket.SOCK_STREAM)
-        self.server.bind(path)
-        self.terminate = False
-        self.server_thread = threading.Thread(target=self._listen_thread)
-        self.start = self.server_thread.start
-        
-        self.clients = []
-        self.client_lock = threading.Lock()
-
-    def stop(self):
-        self.terminate = True
-        self.server_thread.join()
-        os.unlink(self.path)
-        
-    def _listen_thread(self):
-        self.server.listen()
-        while not self.terminate:
-            client, address = self.server.accept()
-            self.logger.info(f'New client: {address}')
-            client.settimeout(0.2)
-            with self.client_lock:
-                self.clients.append((client,address))
-
-    def broadcast(self, msg):
-        with self.client_lock:
-            failed_clients = []
-            for ct in self.clients:
-                client = ct[0]
-                address = ct[1]
-                try:
-                    nb = client.send(msg)
-                    if nb == 0:
-                        raise Exception('Disconnected')
-                except Exception as e:
-                    self.logger.info(f'Client {address} exception {repr(e)}')
-                    failed_clients.append(ct)
-            for fc in failed_clients:
-                self.logger.info(f'Removing client {fc[1]}')
-                self.clients.remove(fc)
 
 LOG_NAME = "pyturfGpsd"
 DEFAULT_CONFIG_NAME = "/usr/local/pylib/pyturfGpsd/pyturfGpsd.ini"

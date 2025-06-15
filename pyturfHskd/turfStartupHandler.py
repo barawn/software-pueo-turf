@@ -17,6 +17,8 @@ class TurfStartupHandler:
 
     class StartupState(int, Enum):
         STARTUP_BEGIN = 0
+        SETUP_GPS = 1
+        WAIT_GPS = 2
         STARTUP_END = 254
         STARTUP_FAILURE = 255
 
@@ -27,12 +29,19 @@ class TurfStartupHandler:
                  logName,
                  turfDev,
                  autoHaltState,
-                 tickFifo):
+                 tickFifo,
+                 startcfg=None):
         self.state = self.StartupState.STARTUP_BEGIN
         self.logger = logging.getLogger(logName)
         self.turf = turfDev
         self.endState = autoHaltState        
         self.tick = tickFifo
+        self.config = startcfg
+        # test this crap first then move to an ini file
+        self.use_gps = True
+        self.gps_trials = 50
+        self.gps_path = '/tmp/turfpps'
+        
         self.rfd, self.wfd = os.pipe2(os.O_NONBLOCK | os.O_CLOEXEC)
         if self.endState is None:
             self.endState = self.StartupState.STARTUP_BEGIN
@@ -51,7 +60,7 @@ class TurfStartupHandler:
         nb = os.write(self.wfd, toWrite)
         if nb != len(toWrite):
             raise RuntimeError("could not write to pipe!")
-        
+
     def run(self):
         # whatever dumb debugging
         self.logger.trace("startup state: %s", self.state)
@@ -75,11 +84,49 @@ class TurfStartupHandler:
             else:
                 dv = self.turf.DateVersion(self.turf.read(0x4))
                 self.logger.info("this is TURF %s", str(dv))
-                self.state = self.StartupState.STARTUP_END
                 self.gbe_scan.initialize()
                 self.aurora_scan.initialize()
+                if self.use_gps:
+                    self.time.pps_holdoff = 100
+                    self.time.use_ext_gps = 1
+                    self.time.en_int_pps = 0
+                    self.state = self.StartupState.SETUP_GPS
+                    self._runImmediate()
+                    return
+                # no gps path
+                self.time.en_int_pps = 1
+                self.state = self.StartupState.STARTUP_END
                 self._runNextTick()
                 return
+        elif self.state == self.StartupState.SETUP_GPS:
+            self.gps_ntrial = 0
+            self.gps_socket = socket.socket(socket.AF_UNIX,
+                                            socket.SOCK_STREAM)
+            self.gps_socket.connect(self.gps_path)
+            self.gps_socket.settimeout(0.1)
+            self._runImmediate()
+            return
+        elif self.state == self.StartupState.WAIT_GPS:
+            try:
+                d = self.gps_socket.recv(4)
+                if len(d) == 4:
+                    # success path
+                    self.time.current_second = int.from_bytes(d,
+                                                              byteorder='little')
+                    self.state = self.StartupState.STARTUP_END
+                    self._runNextTick()
+                    return
+            except socket.timeout:
+                pass
+            # failure path
+            self.gps_ntrial = self.gps_ntrial + 1
+            if self.gps_ntrial == self.gps_trials:
+                self.gps_socket.close()
+                self.state = self.StartupState.STARTUP_END
+                self._runNextTick()
+                return
+            self._runImmediate()
+            return
         elif self.state == self.StartupState.STARTUP_END:
             self.gbe_scan.tick()
             self.aurora_scan.tick()
