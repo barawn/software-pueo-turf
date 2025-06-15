@@ -87,9 +87,9 @@ class TurfStartupHandler:
                 self.gbe_scan.initialize()
                 self.aurora_scan.initialize()
                 if self.use_gps:
+                    self.turf.time.en_int_pps = 0
                     self.turf.time.pps_holdoff = 100
                     self.turf.time.use_ext_gps = 1
-                    self.turf.time.en_int_pps = 0
                     self.state = self.StartupState.SETUP_GPS
                     self._runImmediate()
                     return
