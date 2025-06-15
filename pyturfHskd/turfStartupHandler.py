@@ -124,8 +124,8 @@ class TurfStartupHandler:
                 d = self.gps_socket.recv(4)
                 if len(d) == 4:
                     # success path
-                    self.time.current_second = int.from_bytes(d,
-                                                              byteorder='little')
+                    self.turf.time.current_second = int.from_bytes(d,
+                                                                   byteorder='little')
                     self.state = self.StartupState.STARTUP_END
                     self._runNextTick()
                     return
