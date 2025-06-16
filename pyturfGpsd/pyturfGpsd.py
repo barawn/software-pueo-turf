@@ -113,9 +113,12 @@ if __name__ == "__main__":
         try:
             line = gps.read_until(b'\r\n').strip(b'\r\n').decode()
             msg = pynmea2.parse(line)
-            if type(msg) == pynmea2.RMC:                
-                tm = int(msg.datetime.timestamp())
-                server.broadcast(formatter(tm))
+            if type(msg) == pynmea2.RMC:
+                # pynmea2 doesn't check if datestamp/timestamp are None
+                # and I don't feel like forking it
+                if msg.datestamp is not None and msg.timestamp is not None:
+                    tm = int(msg.datetime.timestamp())
+                    server.broadcast(formatter(tm))
         except SerialException as e:
             print(f'Device error: {repr(e)}')
             break
