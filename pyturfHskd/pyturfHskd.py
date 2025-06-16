@@ -9,6 +9,7 @@ import selectors
 import signal
 import queue
 import logging
+import configparser
 
 from electronics.gateways import LinuxDevice
 from sit5157 import SiT5157
