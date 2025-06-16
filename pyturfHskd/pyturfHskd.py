@@ -9,6 +9,7 @@ import selectors
 import signal
 import queue
 import logging
+import configparser
 
 from electronics.gateways import LinuxDevice
 from sit5157 import SiT5157
@@ -24,7 +25,27 @@ from pyzynqmp import PyZynqMP
 from pueo.turf import PueoTURF
 
 LOG_NAME = "pyturfHskd"
+DEFAULT_CONFIG_NAME = "/usr/local/pyturfHskd/pyturfHskd.ini"
+CONFIG_NAME = "/usr/local/share/pyturfHskd.ini"
 
+# these are the General configs
+generalConfig = {}
+startupConfig = None
+
+nm = DEFAULT_CONFIG_NAME
+if os.path.exists(CONFIG_NAME):
+    nm = CONFIG_NAME
+
+if os.path.exists(nm):
+    parser = configparser.ConfigParser()
+    parser.read(nm)
+    # we can grab the general ones ourselves
+    generalConfig['LogLevel'] = parser.getint('General', 'LogLevel', fallback=logging.WARNING)
+    generalConfig['EndState'] = parser.getint('General', 'EndState', fallback=TurfStartupHandler.StartupState.STARTUP_END)
+    # the startup dude processes their own
+    if parser.has_section('Startup'):
+        startupConfig = parser['Startup']
+                
 # https://stackoverflow.com/questions/2183233/how-to-add-a-custom-loglevel-to-pythons-logging-facility/35804945
 def addLoggingLevel(levelName, levelNum, methodName=None):
     if not methodName:
@@ -54,7 +75,7 @@ def addLoggingLevel(levelName, levelNum, methodName=None):
 addLoggingLevel('TRACE', logging.DEBUG-5)
 addLoggingLevel('DETAIL', logging.INFO-5)
 logger = logging.getLogger(LOG_NAME)
-logging.basicConfig(level=30)
+logging.basicConfig(level=generalConfig['LogLevel'])
 
 # just blitz the TURFIOs first
 for i in range(4):
@@ -130,8 +151,9 @@ else:
 # STARTUP HANDLER
 startup = TurfStartupHandler(LOG_NAME,
                              turf,
-                             TurfStartupHandler.StartupState.STARTUP_END,
-                             tickFifo)
+                             generalConfig['EndState'],
+                             tickFifo,
+                             cfg=startupConfig)
 def runHandler(fd, mask):
     st = os.read(fd, 1)
     logger.trace("immediate run: handler in state %d", st[0])
