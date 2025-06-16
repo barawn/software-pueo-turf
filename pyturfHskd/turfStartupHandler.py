@@ -131,6 +131,7 @@ class TurfStartupHandler:
                     # success path
                     self.turf.time.current_second = int.from_bytes(d,
                                                                    byteorder='little')
+                    self.logger.warning(f'current second: {self.turf.time.current_second}')
                     self.state = self.StartupState.STARTUP_END
                     self._runNextTick()
                     return

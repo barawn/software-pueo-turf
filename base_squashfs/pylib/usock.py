@@ -32,7 +32,10 @@ class UnixSocketBroadcaster:
     def stop(self):
         self.terminate = True
         self.server_thread.join()
-        os.unlink(self.path)
+        try:
+            os.unlink(self.path)
+        except FileNotFoundError:
+            pass
         
     def _listen_thread(self):
         self.server.listen()
