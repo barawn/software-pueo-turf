@@ -9,7 +9,8 @@ MAIN_FILE="pyturfHskd.py"
 AUX_FILES="pueoTimer.py \
 	   turfHskHandler.py \
 	   turfHskProcessor.py \
-           turfStartupHandler.py"
+           turfStartupHandler.py \
+	   pyturfHskd.ini"
 
 if [ "$#" -ne 1 ] ; then
     echo "usage: make_pyturfhskd.sh <destination directory>"
