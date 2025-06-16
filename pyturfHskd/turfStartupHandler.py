@@ -1,11 +1,15 @@
 from enum import Enum
 import logging
 import os
+from configparser import ConfigParser, SectionProxy
+
 from pueo.common.bf import bf
 from pueo.common.uspeyescan import USPEyeScan
 
 import socket
 from threading import Lock
+
+_dummy_config = SectionProxy(ConfigParser(), 'Dummy')
 
 # the startup handler actually runs in the main
 # thread. it either writes a byte to a pipe to
@@ -32,17 +36,18 @@ class TurfStartupHandler:
                  turfDev,
                  autoHaltState,
                  tickFifo,
-                 startcfg=None):
+                 cfg=None):
         self.state = self.StartupState.STARTUP_BEGIN
         self.logger = logging.getLogger(logName)
         self.turf = turfDev
         self.endState = autoHaltState        
         self.tick = tickFifo
-        self.config = startcfg
-        # test this crap first then move to an ini file
-        self.use_gps = True
-        self.gps_trials = 50
-        self.gps_path = '/tmp/turfpps'
+        # we want to let people pass None for cfg
+        if cfg is None:
+            cfg = _dummy_config        
+        self.use_gps = cfg.getboolean('UseGps', fallback=False)
+        self.gps_trials = cfg.getint('GpsTrials', fallback=50)
+        self.gps_path = cfg.get('GpsPath', fallback='/tmp/turfpps')
         self.gps_socket = None
         
         self.rfd, self.wfd = os.pipe2(os.O_NONBLOCK | os.O_CLOEXEC)
