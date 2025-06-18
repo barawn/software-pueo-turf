@@ -23,8 +23,9 @@ class TurfStartupHandler:
 
     class StartupState(int, Enum):
         STARTUP_BEGIN = 0
-        SETUP_GPS = 1
-        WAIT_GPS = 2
+        SELECT_PPS = 1
+        SETUP_GPS = 2
+        WAIT_GPS = 3
         STARTUP_END = 254
         STARTUP_FAILURE = 255
 
@@ -48,6 +49,7 @@ class TurfStartupHandler:
         self.use_gps = cfg.getboolean('UseGps', fallback=False)
         self.gps_trials = cfg.getint('GpsTrials', fallback=50)
         self.gps_path = cfg.get('GpsPath', fallback='/tmp/turfpps')
+        self.gps_offset = cfg.getint('GpsOffset', fallback=0)
         self.gps_socket = None
         
         self.rfd, self.wfd = os.pipe2(os.O_NONBLOCK | os.O_CLOEXEC)
@@ -78,9 +80,11 @@ class TurfStartupHandler:
         # startup.
         if self.state == self.endState or self.state == self.StartupState.STARTUP_FAILURE:
             # once we're in our end state we start running the eye scanner
-            self.gbe_scan.tick()
-            self.aurora_scan.tick()
-            self._runNextTick()
+            # UNLESS the current state is 0 bc we haven't initialized crap yet
+            if self.state != self.StartupState.STARTUP_BEGIN:
+                self.gbe_scan.tick()
+                self.aurora_scan.tick()
+            self._runNextTick()                
             return
         elif self.state == self.StartupState.STARTUP_BEGIN:
             id = self.turf.read(0).to_bytes(4,'big')
@@ -94,21 +98,25 @@ class TurfStartupHandler:
                 self.logger.info("this is TURF %s", str(dv))
                 self.gbe_scan.initialize()
                 self.aurora_scan.initialize()
-                if self.use_gps:
-                    self.turf.time.en_int_pps = 0
-                    self.turf.time.pps_holdoff = 100
-                    self.turf.time.use_ext_pps = 1
-                    self.state = self.StartupState.SETUP_GPS
-                    self._runImmediate()
-                    return
-                # no gps path
-                # no runt pps's
-                self.turf.time.en_int_pps = 0
-                self.turf.time.use_ext_pps = 0
-                self.turf.time.en_int_pps = 1
-                self.state = self.StartupState.STARTUP_END
-                self._runNextTick()
+                self.state = self.StartupState.SELECT_PPS
+                self._runImmediate()
                 return
+        elif self.state == self.StartupState.SELECT_PPS:
+            if self.use_gps:
+                self.turf.time.en_int_pps = 0
+                self.turf.time.pps_holdoff = 100
+                self.turf.time.use_ext_pps = 1
+                self.state = self.StartupState.SETUP_GPS
+                self._runImmediate()
+                return
+            # no gps path
+            # no runt pps's
+            self.turf.time.en_int_pps = 0
+            self.turf.time.use_ext_pps = 0
+            self.turf.time.en_int_pps = 1
+            self.state = self.StartupState.STARTUP_END
+            self._runNextTick()
+            return
         elif self.state == self.StartupState.SETUP_GPS:
             self.gps_ntrial = 0
             if not self.gps_socket:
@@ -129,8 +137,8 @@ class TurfStartupHandler:
                 d = self.gps_socket.recv(4)
                 if len(d) == 4:
                     # success path
-                    self.turf.time.current_second = int.from_bytes(d,
-                                                                   byteorder='little')
+                    sec = int.from_bytes(d,byteorder='little') + self.gps_offset
+                    self.turf.time.current_second = sec                    
                     self.logger.warning(f'current second: {self.turf.time.current_second}')
                     self.state = self.StartupState.STARTUP_END
                     self._runNextTick()
